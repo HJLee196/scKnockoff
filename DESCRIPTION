@@ -11,21 +11,21 @@ Description: Provides methods for differential analysis of single-cell RNA
     sequencing (scRNA-seq) data under the knockoff framework. The package
     implements large-scale conditional independence screening to control
     false discovery rates while accounting for complex dependence
-    structures in high-dimensional settings, with support for handling
-    missing data via sc-softImpute and a matrix decomposition-based
-    knockoff construction.
+    structures in high-dimensional settings, with support for missing data
+    imputation using sc-softImpute with additional latent variables and a
+    matrix decomposition-based knockoff construction designed for
+    high-dimensional inference.
 License: GPL-3
 URL: https://github.com/HJLee196/scKnockoff
 BugReports: https://github.com/HJLee196/scKnockoff/issues
-Depends: 
-    stats
 Imports: 
     glmnet,
     knockoff,
     MASS,
     Matrix,
     Seurat,
-    softImpute
+    softImpute,
+    stats
 Suggests: 
     MAST
 Encoding: UTF-8
