@@ -70,13 +70,13 @@
 #' np_data_imp <- sc_softImpute(np_data_centered,np_data_exp,Xl[,1:3],PC=min(np_data_exp.count)-5)
 #'
 #' # Decomp Knockoff construction
-#' decomp_knk <- create_decomp_knock(np_data_imp$X_imp,
-#'                                   np_data_imp$Xl,
-#'                                   np_data_imp$Bl,
-#'                                   np_data_imp$err,
-#'                                   np_data_imp$PC)
+#' decomp_knock <- create_decomp_knock(np_data_imp$X_imp,
+#'                                     np_data_imp$Xl,
+#'                                     np_data_imp$Bl,
+#'                                     np_data_imp$err,
+#'                                     np_data_imp$PC)
 #'
-#' decomp_knk <- rescale_knockoff(decomp_knk,np_data_exp,np_data.avg)
+#' decomp_knock <- rescale_knockoff(decomp_knock, np_data_exp, np_data.avg)
 #'
 #' @export
 create_decomp_knock <- function(np_data.matrix.imp,Xl,Bl,err,PC,decomp=TRUE){

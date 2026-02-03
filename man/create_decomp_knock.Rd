@@ -73,18 +73,19 @@ np_data_centered <- sweep(np_data,2,np_data.avg,FUN = "-")*(np_data_exp)
 np_data_imp <- sc_softImpute(np_data_centered,np_data_exp,Xl[,1:3],PC=min(np_data_exp.count)-5)
 
 # Decomp Knockoff construction
-decomp_knk <- create_decomp_knock(np_data_imp$X_imp,
-                                  np_data_imp$Xl,
-                                  np_data_imp$Bl,
-                                  np_data_imp$err,
-                                  np_data_imp$PC)
+decomp_knock <- create_decomp_knock(np_data_imp$X_imp,
+                                    np_data_imp$Xl,
+                                    np_data_imp$Bl,
+                                    np_data_imp$err,
+                                    np_data_imp$PC)
 
-decomp_knk <- rescale_knockoff(decomp_knk,np_data_exp,np_data.avg)
+decomp_knock <- rescale_knockoff(decomp_knock, np_data_exp, np_data.avg)
 
 }
 \seealso{
 Other create: 
 \code{\link{create_lr_knock}()},
-\code{\link{create_multi_decomp_knock}()}
+\code{\link{create_multi_decomp_knock}()},
+\code{\link{create_multi_lr_knock}()}
 }
 \concept{create}

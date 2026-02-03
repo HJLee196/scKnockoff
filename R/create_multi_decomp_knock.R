@@ -84,15 +84,15 @@
 #'
 #' # multidecomp knockoff construction
 #' m <- 5
-#' multi_knock <- create_multi_decomp_knock(np_data_imp$X_imp,
-#'                                          np_data_imp$Xl,
-#'                                          np_data_imp$Bl,
-#'                                          np_data_imp$err,
-#'                                          np_data_imp$PC,
-#'                                          m)
+#' multi_decomp_knock <- create_multi_decomp_knock(np_data_imp$X_imp,
+#'                                                 np_data_imp$Xl,
+#'                                                 np_data_imp$Bl,
+#'                                                 np_data_imp$err,
+#'                                                 np_data_imp$PC,
+#'                                                 m)
 #'
 #' # Rescale each of the knockoff copies
-#' multi_knock <- rescale_knockoff(multi_knock, np_data_exp,np_data.avg)
+#' multi_decomp_knock <- rescale_knockoff(multi_decomp_knock, np_data_exp, np_data.avg)
 #'
 #' @export
 create_multi_decomp_knock <- function(np_data.matrix.imp,Xl,Bl,err,PC,m){
