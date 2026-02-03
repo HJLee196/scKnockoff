@@ -24,15 +24,22 @@
 #'
 #' @return
 #' A list of length \code{m}. Each element is a numeric matrix of dimension
-#' n x p containing one knockoff copy constructed using the matrix
-#' decomposition-based covariance estimate and the multiple knockoff procedure.
-#' The returned knockoffs are not rescaled; rescaling should be performed
-#' separately (e.g., using \code{rescale_knockoff}).
+#' \eqn{n \times p} containing one knockoff copy constructed using the
+#' matrix decomposition-based covariance estimate and the multiple
+#' knockoff procedure. The returned matrices are not rescaled; rescaling
+#' should be performed separately (e.g., using
+#' \code{rescale_knockoff}).
 #'
 #' @family create
 #'
-#' @details A multiple knockoff constructor that takes advantage of a matrix decomposition,
-#' creating more efficient knockoffs for high-dimensional datasets.
+#' @details
+#' Constructs multiple knockoff copies using a matrix decomposition-based
+#' covariance estimator and a multiple knockoff procedure. The \code{m}
+#' knockoff copies are generated jointly so that the required
+#' exchangeability property holds simultaneously across the original
+#' variables and all knockoff copies. Compared to full covariance-based
+#' knockoff construction, this approach reduces computational and memory
+#' costs in high-dimensional settings.
 #'
 #' @references
 #' Roquero Gimenez, J., and Zou, J. (2019).

@@ -317,19 +317,20 @@ feature_importance <- function(np_data.sub,
         glmnet::cv.glmnet(y = label_Idents, x = np_data.full,
                           nfolds = 10,
                           alpha = 1, # alpha = 1 means lasso
-                          family = "binomial")
+                          family = "binomial",
+                          standardize = FALSE)
 
       cv_lasso_fit_best_lambda <- cv_lasso_fit[["lambda.1se"]] #lambda.1se #lambda.min
       cv_lasso_fit_coef <- Matrix::t(stats::coef(cv_lasso_fit, s = cv_lasso_fit_best_lambda))
       cv_lasso_fit_coef <- cv_lasso_fit_coef[,colnames(cv_lasso_fit_coef) != "(Intercept)", drop = F]
 
-      cv_lasso_fit_coef_orig <- cv_lasso_fit_coef[,colnames(cv_lasso_fit_coef) %in% colnames(np_data.matrix)]
+      cv_lasso_fit_coef_orig <- cv_lasso_fit_coef[,match(colnames(np_data.matrix), colnames(cv_lasso_fit_coef))]
 
       W_imp[1, ] <- abs(cv_lasso_fit_coef_orig)
       for (m_ko in 1:m_kos)
       {
         colnames_mth_ko <- paste0(colnames(np_data.matrix), "_", m_ko)
-        cv_lasso_fit_coef_mth_ko <- cv_lasso_fit_coef[,colnames(cv_lasso_fit_coef) %in% colnames_mth_ko]
+        cv_lasso_fit_coef_mth_ko <- cv_lasso_fit_coef[,match(colnames_mth_ko, colnames(cv_lasso_fit_coef))]
         W_imp[1 + m_ko, ] <- abs(cv_lasso_fit_coef_mth_ko)
       }
     }
@@ -436,14 +437,15 @@ feature_importance <- function(np_data.sub,
         glmnet::cv.glmnet(y = label_Idents, x = np_data.full,
                           nfolds = 10,
                           alpha = 1, # alpha = 1 means lasso
-                          family = "binomial")
+                          family = "binomial",
+                          standardize = FALSE)
 
       cv_lasso_fit_best_lambda <- cv_lasso_fit[["lambda.1se"]] #lambda.1se #lambda.min
       cv_lasso_fit_coef <- Matrix::t(stats::coef(cv_lasso_fit, s = cv_lasso_fit_best_lambda))
       cv_lasso_fit_coef <- cv_lasso_fit_coef[,colnames(cv_lasso_fit_coef) != "(Intercept)", drop = F]
 
-      cv_lasso_fit_coef_orig <- cv_lasso_fit_coef[,colnames(cv_lasso_fit_coef) %in% colnames(np_data.matrix_scale)]
-      cv_lasso_fit_coef_ko <- cv_lasso_fit_coef[,colnames(cv_lasso_fit_coef) %in% colnames(np_data.knockoff.scale)]
+      cv_lasso_fit_coef_orig <- cv_lasso_fit_coef[,match(colnames(np_data.matrix.scale), colnames(cv_lasso_fit_coef))]
+      cv_lasso_fit_coef_ko <- cv_lasso_fit_coef[,match(colnames(np_data.knockoff.scale), colnames(cv_lasso_fit_coef))]
 
       W_imp[1,] <- abs(cv_lasso_fit_coef_orig)
       W_imp[2,] <- abs(cv_lasso_fit_coef_ko)

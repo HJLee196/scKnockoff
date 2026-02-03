@@ -24,20 +24,24 @@ excluding additional covariates.}
 semidefinite program (ASDP). If \code{FALSE}, generate knockoffs with ASDP.}
 }
 \value{
-If successful, a numeric matrix of dimension n x p containing knockoff
-variables constructed using the matrix decomposition-based covariance
-estimate and second-order Gaussian knockoff generation.
-The returned matrix is not rescaled; rescaling should be performed
-separately (e.g., using \code{rescale_knockoff}).
-If knockoff construction fails, the function returns \code{NULL} and throws
-a warning.
+If successful, a numeric matrix of dimension \eqn{n \times p} containing
+one set of knockoff variables constructed using either a matrix
+decomposition-based covariance estimate or an ASDP-based approach (see
+Details). The returned matrix is not rescaled; rescaling should be
+performed separately (e.g., using \code{rescale_knockoff}). If knockoff
+construction fails, the function returns \code{NULL} and issues a
+warning.
 }
 \description{
 Knockoff construction using matrix decomposition
 }
 \details{
-A knockoff constructor that takes advantage of a matrix decomposition,
-creating more efficient knockoffs for high-dimensional datasets.
+Constructs knockoff variables using second-order Gaussian knockoff
+generation. When \code{decomp = TRUE}, the method uses a matrix
+decomposition-based covariance estimator to reduce computational and
+memory costs in high-dimensional settings compared to full
+covariance-based approaches. When \code{decomp = FALSE}, the method constructs knockoffs using an
+approximate semidefinite programming (ASDP) approach.
 }
 \examples{
 set.seed(2024)

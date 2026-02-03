@@ -17,15 +17,23 @@
 #'
 #' @return
 #' A list of length \code{m}. Each element is a numeric matrix of dimension
-#' n x p containing one knockoff copy constructed using the low-rank structure.
-#' The knockoffs are constructed as \eqn{X_l B_l + E}, where \eqn{E} is a noise
-#' matrix with independent columns and variances specified by \code{err}.
-#' The returned matrix is not rescaled; rescaling should be performed
-#' separately (e.g., using \code{rescale_knockoff}).
+#' \eqn{n \times p} containing one set of low-rank knockoff variables.
+#' The knockoffs are constructed as
+#' \deqn{X_l B_l + E,}
+#' where \eqn{E} is a noise matrix with independent columns and variances
+#' specified by \code{err}. The returned matrices are not rescaled;
+#' rescaling should be performed separately (e.g., using
+#' \code{rescale_knockoff}).
 #'
 #' @family create
 #'
-#' @details Multi-lr knockoffs that can be constructed based on the results from \code{sc_softImpute}.
+#' @details
+#' Constructs multiple low-rank knockoff variables based on the output of
+#' \code{sc_softImpute}. Each knockoff copy shares the same low-rank
+#' structure and is combined with an independently generated noise term.
+#' By exploiting a low-rank structure in the data, this approach can offer
+#' substantial computational advantages when such a structure is
+#' appropriate.
 #'
 #' @references
 #' Fan, Y., Lv, J., Sharifvaghefi, M., and Uematsu, Y. (2020).
