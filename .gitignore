@@ -8,3 +8,5 @@ revdep/
 .Ruserdata
 .DS_Store
 *.zip
+*.rds
+*.rda
