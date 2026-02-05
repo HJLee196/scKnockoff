@@ -185,8 +185,9 @@ sc_softImpute <- function(np_data.matrix,
 
     X_0 <- cbind(X,X_0)
 
+    # Initial Values
     X_0 <- sweep(X_0,2,colMeans(X_0),FUN = "-")
-    B_0 <- solve(t(X_0)%*%X_0 + lambda*diag(ncol = k_num, nrow = k_num))%*%t(X_0)%*%np_data.matrix
+    B_0 <- solve(t(X_0)%*%X_0 + lambda*diag(ncol = ncol(X_0), nrow = ncol(X_0)))%*%t(X_0)%*%np_data.matrix
 
     np_data.matrix_l <- lm_impute(Yl_imp = np_data.matrix,
                                   Yl = np_data.matrix,
