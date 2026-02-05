@@ -91,7 +91,6 @@
 #'                                                 np_data_imp$PC,
 #'                                                 m)
 #'
-#' # Rescale each of the knockoff copies
 #' multi_decomp_knock <- rescale_knockoff(multi_decomp_knock, np_data_exp, np_data.avg)
 #'
 #' @export

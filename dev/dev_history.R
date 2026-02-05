@@ -1,3 +1,5 @@
+# remove.packages("scKnockoff")
+
 # dev/dev_history.R
 usethis::use_git_ignore(c("*.Rcheck/",
                           "*.tar.gz",
@@ -38,6 +40,13 @@ withr::with_options(
     rcmdcheck::rcmdcheck(args = c("--no-manual", "--as-cran"))
   }
 )
+
+# Check Future Time Stamp (b/c of note: unable to verify current time)
+files <- list.files(".", recursive = TRUE, full.names = TRUE)
+info <- file.info(files)
+
+info[info$mtime > Sys.time(), c("mtime")] # 0 row -> no problem
+
 
 # 6) tags + cleanliness
 checkhelper::find_missing_tags()

@@ -27,7 +27,7 @@ separately (e.g., using \code{rescale_knockoff}).
 Multiple knockoff construction using low rank structure
 }
 \details{
-Multi-lr knockoffs that can be constructed based on the results from \code{sc_softImpute}.
+Multi-LR knockoffs that can be constructed based on the results from \code{sc_softImpute}.
 }
 \examples{
 set.seed(2024)

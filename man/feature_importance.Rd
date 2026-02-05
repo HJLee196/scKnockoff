@@ -97,13 +97,13 @@ np_data_imp <- sc_softImpute(np_data_centered,np_data_exp,X,PC=15)
 
 # Decomp Knockoff construction
 set.seed(1010)
-decomp_knk <- create_decomp_knock(np_data_imp$X_imp,
-                                  np_data_imp$Xl,
-                                  np_data_imp$Bl,
-                                  np_data_imp$err,
-                                  np_data_imp$PC)
+decomp_knock <- create_decomp_knock(np_data_imp$X_imp,
+                                    np_data_imp$Xl,
+                                    np_data_imp$Bl,
+                                    np_data_imp$err,
+                                    np_data_imp$PC)
 
-decomp_knk <- rescale_knockoff(decomp_knk,np_data_exp,np_data.avg)
+decomp_knock <- rescale_knockoff(decomp_knock,np_data_exp,np_data.avg)
 
 
 # Generate synthetic signal

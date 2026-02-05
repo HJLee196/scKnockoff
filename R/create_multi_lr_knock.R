@@ -25,7 +25,7 @@
 #'
 #' @family create
 #'
-#' @details Multi-lr knockoffs that can be constructed based on the results from \code{sc_softImpute}.
+#' @details Multi-LR knockoffs that can be constructed based on the results from \code{sc_softImpute}.
 #'
 #' @references
 #' Fan, Y., Lv, J., Sharifvaghefi, M., and Uematsu, Y. (2020).

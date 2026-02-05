@@ -60,11 +60,11 @@ np_data_centered <- sweep(np_data,2,np_data.avg,FUN = "-")*(np_data_exp)
 np_data_imp <- sc_softImpute(np_data_centered, np_data_exp, X[,1:3], PC = min(np_data_exp.count)-5)
 
 # Low-rank Knockoff construction
-lr_knk <- create_lr_knock(np_data_imp$Xl,
+lr_knock <- create_lr_knock(np_data_imp$Xl,
                          np_data_imp$Bl,
                          np_data_imp$err)
 
-lr_knk <- rescale_knockoff(lr_knk,np_data_exp,np_data.avg)
+lr_knock <- rescale_knockoff(lr_knock,np_data_exp,np_data.avg)
 
 }
 \references{

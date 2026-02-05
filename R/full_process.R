@@ -290,7 +290,7 @@ full_process <- function(Seurat_data,
 
   #### Decomp Knockoff construction ####
   if (m == 1){
-    decomp_knk <-
+    decomp_knock <-
       create_decomp_knock(np_data.matrix.imp = np_data.matrix.imp$X_imp,
                           Xl = np_data.matrix.imp$Xl,
                           Bl = np_data.matrix.imp$Bl,
@@ -298,7 +298,7 @@ full_process <- function(Seurat_data,
                           decomp = TRUE,
                           PC = np_data.matrix.imp$PC)
   } else {
-    decomp_knk <-
+    decomp_knock <-
       create_multi_decomp_knock(np_data.matrix.imp = np_data.matrix.imp$X_imp,
                                 Xl = np_data.matrix.imp$Xl,
                                 Bl = np_data.matrix.imp$Bl,
@@ -308,14 +308,14 @@ full_process <- function(Seurat_data,
   }
 
 
-  decomp_knk <- rescale_knockoff(decomp_knk,
-                                 np_data.matrix.exp,
-                                 np_data.matrix.fix)
+  decomp_knock <- rescale_knockoff(decomp_knock,
+                                   np_data.matrix.exp,
+                                   np_data.matrix.fix)
 
   #### Feature calculation and variable selection ####
 
   W_imp <- feature_importance(np_data.sub = np_data.sub,
-                              np_data.knockoff = decomp_knk,
+                              np_data.knockoff = decomp_knock,
                               bonf = TRUE,
                               ident.1 = ident.1, ident.2 = ident.2, slot_name = slot_name,
                               test.use = test.use, latent.vars = latent.vars_comp)
