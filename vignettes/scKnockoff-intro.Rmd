@@ -1,0 +1,392 @@
+---
+title: "Introduction to scKnockoff"
+author: "Hyunjae Lee"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to scKnockoff}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+# 1. Load scKnockoff
+
+```{r}
+# if (!requireNamespace("scKnockoff", quietly = TRUE)) {
+#   devtools::install_github("HJLee196/scKnockoff")
+# }
+
+library(scKnockoff)
+```
+
+# 2. Create dataset
+
+We generate synthetic disease labels using a logistic model based on standardized expression values, with a subset of genes serving as ground-truth signals.
+
+```{r}
+make_toy_seurat_ad <- function(
+    n_genes = 100,
+    donors_per_group = 6,
+    cell_types = c("Astro", "Micro", "Neuron"),
+    cells_per_donor_per_type = 50,
+    n_batch = 2,
+    # disease-associated genes
+    n_signals = 30,
+    # effect sizes (fold-changes on mean)
+    signal_strength = 5,
+    seed = 1
+) {
+  if (!requireNamespace("Seurat", quietly = TRUE)) {
+    stop("Seurat is required to build the toy Seurat object. Install Seurat or skip this example.")
+  }
+    
+  set.seed(seed)
+  
+  n_types <- length(cell_types)
+  n_donors <- 2 * donors_per_group
+  donors <- paste0("D", seq_len(n_donors))
+  
+  # assign batch by donor (simple, realistic confounding possibility)
+  batch_by_donor <- sample(paste0("B", seq_len(n_batch)), size = n_donors, replace = TRUE)
+  names(batch_by_donor) <- donors
+  
+  # total cells
+  n_cells <- n_donors * n_types * cells_per_donor_per_type
+  
+  # cell-level metadata
+  meta <- data.frame(
+    cell_id = paste0("cell", seq_len(n_cells)),
+    donor = rep(donors, each = n_types * cells_per_donor_per_type),
+    cell_type = rep(rep(cell_types, each = cells_per_donor_per_type), times = n_donors),
+    stringsAsFactors = FALSE
+  )
+  
+  meta$batch <- unname(batch_by_donor[meta$donor])
+  
+  # add a numeric covariate (optional example): library size factor or "age"
+  # keep it simple and small effect
+  donor_age <- round(runif(n_donors, 65, 90))
+  names(donor_age) <- donors
+  meta$age <- unname(donor_age[meta$donor])
+  
+  # gene names
+  genes <- paste0("gene", seq_len(n_genes))
+  
+  # donor random effect on mean (log-normal)
+  donor_effect <- rnorm(n_donors, mean = 0, sd = 0.25)
+  names(donor_effect) <- donors
+  
+  # batch random effect on mean (log-normal)
+  batch_levels <- paste0("B", seq_len(n_batch))
+  batch_effect <- rnorm(n_batch, mean = 0, sd = 0.15)
+  names(batch_effect) <- batch_levels
+  
+  # cell random effect on mean (log-normal)
+  cell_effect <- rnorm(length(cell_types), mean = 0, sd = 0.15)
+  names(cell_effect) <- cell_types
+  
+  # build counts (genes x cells)
+  counts <- matrix(0L, nrow = n_genes, ncol = n_cells)
+  rownames(counts) <- genes
+  colnames(counts) <- meta$cell_id
+  
+  # baseline gene means
+  mu0 <- runif(n_genes, 0.02, 5)        # baseline expression
+  size_nb <- 1                          # NB dispersion-ish parameter
+  
+  for (j in seq_len(n_cells)) {
+    donor_j <- meta$donor[j]
+    batch_j <- meta$batch[j]
+    type_j <- meta$cell_type[j]
+    
+    # start from baseline mean
+    mu <- mu0
+    
+    # apply donor + batch + library effects multiplicatively
+    mu <- mu * exp(donor_effect[donor_j]) * exp(batch_effect[batch_j]) * exp(cell_effect[type_j])
+    
+    # sample counts from NB
+    counts[, j] <- stats::rnbinom(n_genes, size = size_nb, mu = mu)
+  }
+  
+  # build Seurat object
+  seu <- Seurat::CreateSeuratObject(counts = counts, project = "toyAD")
+  seu$donor <- meta$donor
+  seu$cell_type <- meta$cell_type
+  seu$batch <- meta$batch
+  seu$age <- meta$age
+  
+  # data and scale.data
+  seu <- Seurat::NormalizeData(seu, verbose = FALSE)
+  seu <- Seurat::ScaleData(seu, features = rownames(seu), verbose = FALSE)
+  
+  # Generate synthetic signal
+  seu_data.matrix <- Seurat::GetAssayData(object = seu, layer = "data")
+  seu_data.matrix.scale <- apply(Matrix::t(seu_data.matrix), 2, scale)
+  colnames(seu_data.matrix.scale) <- rownames(seu_data.matrix)
+  rownames(seu_data.matrix.scale) <- colnames(seu_data.matrix)
+  
+  n <- nrow(seu_data.matrix.scale)
+  p <- ncol(seu_data.matrix.scale)
+  
+  norm_coef <- rep(0, p)
+  tmp_coef <- rep(0, n_signals)
+  
+  for(i in 1:n_signals){
+    new_coef <- 0
+    # truncate the coefficients which are too small
+    while(isTRUE((new_coef)^2 < (signal_strength^2)*2*log(p)/n)){
+      new_coef <- rnorm(1,0,signal_strength*sqrt(2*log(p)/n))
+    }
+    
+    tmp_coef[i] <- new_coef
+  }
+  
+  sig_coef <- sample(1:p, n_signals)
+  norm_coef[sig_coef] <- tmp_coef
+  
+  label_p <- 1/(1 + exp(- seu_data.matrix.scale %*% norm_coef))
+  
+  # Create random labels
+  label_binom <- rbinom(n = length(label_p), size = 1, prob = label_p)
+  label_ad <- ifelse((label_binom>=0.5), "AD", "Control")
+  
+  seu$disease = label_ad
+  Seurat::Idents(seu) <- "disease"
+  
+  # store truth for vignette evaluation 
+  seu@misc$true_signal <- sort(sig_coef)
+  seu@misc$norm_coef <- norm_coef
+  
+  seu
+}
+
+Seurat_toy = make_toy_seurat_ad(seed = 1)
+
+```
+
+
+# 3. Imputation using sc-softImpute
+
+In addition to `batch`, `cell_type`, and `age`, we compute and include the cellular detection rate (CDR) as a latent variable.
+
+```{r}
+feature.names <- rownames(Seurat_toy)
+
+np_data.count <- Seurat::GetAssayData(object = Seurat_toy, layer = "count")
+
+np_data.matrix.exp <- Matrix::t(np_data.count > 0) # indicator matrix for expressed genes,
+np_data.matrix.exp.count <- Matrix::colSums(np_data.matrix.exp)
+
+# Calculate cellular detection rate (CDR)
+np_data.matrix <- np_data.count # do not transpose here. Keep the genes as rows.
+
+CDR <- Matrix::rowMeans(np_data.matrix.exp) # expressed genes in each CELL
+Seurat_toy$CDR <- CDR
+```
+
+Before applying `sc_softImpute`, we first need to create a matrix of the latent variables.
+
+```{r}
+latent.vars_imp = c("batch", "cell_type", "age", "CDR")
+# generate X
+X <- NULL
+for (imp_vars_temp in latent.vars_imp) {
+
+  # meta.data column as vector
+  v <- Seurat_toy[[imp_vars_temp]][, 1, drop = TRUE]
+
+  # if non-numeric: one-hot encode
+  if (!is.numeric(v)) {
+    mm <- stats::model.matrix(~ x, data = data.frame(x = v))  # includes intercept
+    mm <- mm[, -1, drop = FALSE]  # drop intercept -> k-1 dummies
+    # optional: prefix colnames to avoid collisions
+    colnames(mm) <- paste0(imp_vars_temp, ":", colnames(mm))
+    vmat <- mm
+  } else {
+    vmat <- matrix(v, ncol = 1)
+    colnames(vmat) <- imp_vars_temp
+  }
+
+  X <- if (is.null(X)) vmat else cbind(X, vmat)
+}
+```
+
+We also filter out genes that are expressed in only a few cells to satisfy the model assumptions. In this example, we set `PC = 5`.
+
+```{r}
+PC = 5
+
+# Exclude some genes
+if (is.null(X)){
+  X_p <- 0
+} else {
+  X_p <- ncol(X)
+}
+feature.exp.ind <- which(np_data.matrix.exp.count > (PC + X_p + 1)) 
+
+feature.names.new <- feature.names[feature.exp.ind]  
+
+np_data.matrix.exp <- np_data.matrix.exp[,feature.exp.ind]
+np_data.matrix.exp.count <- np_data.matrix.exp.count[feature.exp.ind]
+
+# Refresh Seurat_toy
+Seurat_toy <- subset(x = Seurat_toy, features = feature.names.new)
+```
+
+To apply `sc_softImpute`, we center the expressed part of the data matrix.
+
+```{r}
+np_data.matrix <- Seurat::GetAssayData(object = Seurat_toy, layer = "data") # Normalized data matrix
+np_data.matrix <- Matrix::t(np_data.matrix)
+
+# Center target matrix, but only center the expressed parts.
+np_data.matrix.fix <- (Matrix::colSums(np_data.matrix*np_data.matrix.exp))/np_data.matrix.exp.count # na.rm = T is removed
+np_data.matrix.center <- methods::as(sweep(np_data.matrix,2,np_data.matrix.fix,FUN = "-")*(np_data.matrix.exp), Class = "dgCMatrix")
+```
+
+We now apply `sc_softImpute`. Note that `np_data.matrix.exp` should be a numeric matrix with the same dimensions as `np_data.matrix`, where entries are 1 for observed values and 0 for missing values.
+
+```{r}
+#### Imputation ####
+np_data.matrix.exp <- np_data.matrix.exp*1
+np_data.matrix.imp.list <- sc_softImpute(np_data.matrix = np_data.matrix.center,
+                                         np_data.matrix.exp = np_data.matrix.exp,
+                                         X = X,
+                                         PC = PC,
+                                         max_it = 100)
+```
+
+# 4. Generating Knockoffs for each method
+
+In scKnockoff, we provide four knockoff generation methods:
+- LR knockoff
+- Multi-LR knockoff
+- Decomp knockoff
+- Multi-decomp knockoff
+
+```{r}
+lr_knock <- create_lr_knock(np_data.matrix.imp = np_data.matrix.imp.list$X_imp,
+                            Xl = np_data.matrix.imp.list$Xl,
+                            Bl = np_data.matrix.imp.list$Bl,
+                            err = np_data.matrix.imp.list$err)
+
+decomp_knock <- create_decomp_knock(np_data.matrix.imp = np_data.matrix.imp.list$X_imp,
+                                    Xl = np_data.matrix.imp.list$Xl,
+                                    Bl = np_data.matrix.imp.list$Bl,
+                                    err = np_data.matrix.imp.list$err,
+                                    PC = np_data.matrix.imp.list$PC, 
+                                    decomp = TRUE)
+
+m <- 5 # Number of knockoff copies
+multi_lr_knock <- create_multi_lr_knock(np_data.matrix.imp = np_data.matrix.imp.list$X_imp,
+                                        Xl = np_data.matrix.imp.list$Xl,
+                                        Bl = np_data.matrix.imp.list$Bl,
+                                        err = np_data.matrix.imp.list$err,
+                                        m = m)
+
+multi_decomp_knock <- create_multi_decomp_knock(np_data.matrix.imp = np_data.matrix.imp.list$X_imp,
+                                                Xl = np_data.matrix.imp.list$Xl,
+                                                Bl = np_data.matrix.imp.list$Bl,
+                                                err = np_data.matrix.imp.list$err,
+                                                PC = np_data.matrix.imp.list$PC, 
+                                                m = m)
+```
+
+After generating the knockoffs, we rescale them.
+
+```{r}
+lr_knock <- rescale_knockoff(X_knk = lr_knock, 
+                             np_data.matrix.exp = np_data.matrix.exp, 
+                             center = np_data.matrix.fix)
+
+decomp_knock <- rescale_knockoff(X_knk = decomp_knock, 
+                                 np_data.matrix.exp = np_data.matrix.exp, 
+                                 center = np_data.matrix.fix)
+
+multi_lr_knock <- rescale_knockoff(X_knk = multi_lr_knock, 
+                                   np_data.matrix.exp = np_data.matrix.exp, 
+                                   center = np_data.matrix.fix)
+
+multi_decomp_knock <- rescale_knockoff(X_knk = multi_decomp_knock, 
+                                       np_data.matrix.exp = np_data.matrix.exp, 
+                                       center = np_data.matrix.fix)
+```
+
+# 5. Compute the feature importance for each knockoff
+
+We compute feature importance using testing procedures provided by `Seurat::FindMarkers`, including the lasso coefficient difference (LCD) statistic, which can be specified by setting `test.use = "LCD"` in `feature_importance`. In our implementation, we use `test.use = "LCD"` for the LR and decomp knockoffs, and `test.use = "LR"` for the multi-LR and multi-decomp knockoffs.
+
+```{r}
+latent.vars_comp = latent.vars_imp
+
+W_imp_lr <- feature_importance(np_data.sub = Seurat_toy,
+                               np_data.knockoff = lr_knock,
+                               bonf = TRUE,
+                               ident.1 = "Control", ident.2 = "AD", slot_name = "data",
+                               test.use = "LCD", latent.vars = latent.vars_comp)
+
+W_imp_decomp <- feature_importance(np_data.sub = Seurat_toy,
+                                   np_data.knockoff = decomp_knock,
+                                   bonf = TRUE,
+                                   ident.1 = "Control", ident.2 = "AD", slot_name = "data",
+                                   test.use = "LCD", latent.vars = latent.vars_comp)
+
+
+W_imp_multi_lr <- feature_importance(np_data.sub = Seurat_toy,
+                                     np_data.knockoff = multi_lr_knock,
+                                     bonf = TRUE,
+                                     ident.1 = "Control", ident.2 = "AD", slot_name = "data",
+                                     test.use = "LR", latent.vars = latent.vars_comp)
+
+W_imp_multi_decomp <- feature_importance(np_data.sub = Seurat_toy,
+                                         np_data.knockoff = multi_decomp_knock,
+                                         bonf = TRUE,
+                                         ident.1 = "Control", ident.2 = "AD", slot_name = "data",
+                                         test.use = "LR", latent.vars = latent.vars_comp)
+
+```
+
+Using `knockfilter_select`, we select potentially significant genes at a target false discovery rate of `q = 0.1`.
+
+```{r}
+selected_lr <- knockfilter_select(W_imp = W_imp_lr, q = 0.1)
+selected_decomp <- knockfilter_select(W_imp = W_imp_decomp, q = 0.1)
+selected_multi_lr <- knockfilter_select(W_imp = W_imp_multi_lr, q = 0.1)
+selected_multi_decomp <- knockfilter_select(W_imp = W_imp_multi_decomp, q = 0.1)
+
+true_signal <- Seurat_toy@misc$true_signal
+```
+
+We then evaluate the empirical false discovery rates (FDRs) and powers of the selected genes.
+
+```{r}
+print("LR knockoff - LCD")
+print((length(selected_lr) - sum(selected_lr %in% true_signal))/length(selected_lr)) # FDR
+print(sum(selected_lr %in% true_signal)/length(true_signal)) # Power
+
+print("Decomp knockoff - LCD")
+print((length(selected_decomp) - sum(selected_decomp %in% true_signal))/length(selected_decomp)) # FDR
+print(sum(selected_decomp %in% true_signal)/length(true_signal)) # Power
+
+print("Multi-LR knockoff - LR")
+print((length(selected_multi_lr) - sum(selected_multi_lr %in% true_signal))/length(selected_multi_lr)) # FDR
+print(sum(selected_multi_lr %in% true_signal)/length(true_signal)) # Power
+
+print("Multi-decomp knockoff - LR")
+print((length(selected_multi_decomp) - sum(selected_multi_decomp %in% true_signal))/length(selected_multi_decomp)) # FDR
+print(sum(selected_multi_decomp %in% true_signal)/length(true_signal)) # Power
+```
+
+
+
+
