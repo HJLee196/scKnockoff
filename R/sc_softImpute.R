@@ -37,37 +37,37 @@
 #' \code{ncol(X)} is treated as 0 when \code{X} is \code{NULL}.
 #'
 #' @examples
-#' set.seed(2024)
-#' # Create dataset
-#' X <- matrix(rnorm(1000),nrow = 100)
-#' Bl <- matrix(rnorm(800),ncol=80)
-#' err <- abs(rnorm(80,sd=3))
-#'
-#' E <- matrix(NA,nrow = 100,ncol = 80)
-#' for(i in 1:80){
-#'   E[,i] = rnorm(100, sd = err[i])
-#' }
-#'
-#' np_data <- X%*%Bl + E
-#'
-#' rownames(np_data) <- paste0("r", 1:100)
-#' colnames(np_data) <- paste0("c", 1:80)
-#'
-#' # Create missing data
-#' miss <- sample(1:prod(dim(np_data)),floor(prod(dim(np_data))*0.6))
-#' np_data[miss] <- 0
-#'
-#' np_data_exp <- matrix(1,nrow=100,ncol=80)
-#' np_data_exp[miss] <- 0
-#'
-#' np_data_exp.count <- apply(np_data_exp,2,sum)
-#'
-#' # Center target matrix, but only center the expressed parts.
-#' np_data.avg <- (colSums(np_data, na.rm = TRUE))/(np_data_exp.count-1)
-#' np_data_centered <- sweep(np_data,2,np_data.avg,FUN = "-")*(np_data_exp)
-#'
-#' # Impute missing values
-#' np_data_imp <- sc_softImpute(np_data_centered,np_data_exp,X[,1:3],PC=min(np_data_exp.count)-5)
+# set.seed(2024)
+# # Create dataset
+# X <- matrix(rnorm(1000),nrow = 100)
+# Bl <- matrix(rnorm(800),ncol=80)
+# err <- abs(rnorm(80,sd=3))
+#
+# E <- matrix(NA,nrow = 100,ncol = 80)
+# for(i in 1:80){
+#   E[,i] = rnorm(100, sd = err[i])
+# }
+#
+# np_data <- X%*%Bl + E
+#
+# rownames(np_data) <- paste0("r", 1:100)
+# colnames(np_data) <- paste0("c", 1:80)
+#
+# # Create missing data
+# miss <- sample(1:prod(dim(np_data)),floor(prod(dim(np_data))*0.6))
+# np_data[miss] <- 0
+#
+# np_data_exp <- matrix(1,nrow=100,ncol=80)
+# np_data_exp[miss] <- 0
+#
+# np_data_exp.count <- apply(np_data_exp,2,sum)
+#
+# # Center target matrix, but only center the expressed parts.
+# np_data.avg <- (colSums(np_data, na.rm = TRUE))/(np_data_exp.count-1)
+# np_data_centered <- sweep(np_data,2,np_data.avg,FUN = "-")*(np_data_exp)
+#
+# # Impute missing values
+# np_data_imp <- sc_softImpute(np_data_centered,np_data_exp,X[,1:3],PC=min(np_data_exp.count)-5)
 #'
 #' @export
 sc_softImpute <- function(np_data.matrix,
@@ -143,6 +143,10 @@ sc_softImpute <- function(np_data.matrix,
     if (nrow(X) != n) {
       stop("`X` must have the same number of rows as `np_data.matrix`.", call. = FALSE)
     }
+
+    # Full-rank check for X
+    check_full_rank(X, name = "X")
+
     k_num <- ncol(X) # number of additional covariates
   } else {
     k_num <- 0
@@ -175,6 +179,8 @@ sc_softImpute <- function(np_data.matrix,
       is.na(max_it) || max_it <= 0 || max_it != as.integer(max_it)) {
     stop("`max_it` must be a positive integer.", call. = FALSE)
   }
+
+
 
   if (!is.null(X)){
     # if (requireNamespace('Seurat', quietly=T)){
@@ -316,4 +322,29 @@ lm_impute <- function(Yl_imp,
   Yl_imp <- (Yl - Y_hat)*Yl_exp + Y_hat
 
   return(list(Yl_imp,Xl,Bl))
+}
+
+#' @noRd
+check_full_rank <- function(M, name = "matrix",
+                            tol = .Machine$double.eps^0.5) {
+  if (!is.matrix(M)) stop(sprintf("`%s` must be a matrix.", name), call. = FALSE)
+  if (!is.numeric(M)) stop(sprintf("`%s` must be numeric.", name), call. = FALSE)
+  if (any(!is.finite(M))) stop(sprintf("`%s` contains NA/NaN/Inf.", name), call. = FALSE)
+
+  n <- nrow(M); p <- ncol(M)
+  if (n < p) {
+    stop(sprintf("`%s` has n < p (n = %d, p = %d), so it cannot be full rank.", name, n, p),
+         call. = FALSE)
+  }
+
+  qrM <- qr(M, tol = tol)
+  if (qrM$rank < p) {
+    dep <- colnames(M)
+    if (!is.null(dep)) dep <- dep[qrM$pivot[(qrM$rank + 1L):p]]
+    msg <- paste0("`", name, "` is not full rank (rank = ", qrM$rank, ", p = ", p, ").")
+    if (!is.null(dep)) msg <- paste0(msg, "\nLinearly dependent columns:\n  - ", paste(dep, collapse = "\n  - "))
+    stop(msg, call. = FALSE)
+  }
+
+  invisible(TRUE)
 }
