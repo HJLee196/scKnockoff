@@ -138,7 +138,7 @@ label_ad <- ifelse((label_binom>=0.5),"y1", "y2")
 pbmc_small <- Seurat::SetIdent(object = pbmc_small, value = label_ad)
 
 
-W_imp <- feature_importance(pbmc_small,decomp_knk,bonf=TRUE,
+W_imp <- feature_importance(pbmc_small, decomp_knock, bonf=TRUE,
                            ident.1 = 'y1', ident.2 = 'y2',
                            test.use ="MAST")
 

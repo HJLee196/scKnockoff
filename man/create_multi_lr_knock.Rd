@@ -4,9 +4,12 @@
 \alias{create_multi_lr_knock}
 \title{Multiple knockoff construction using low rank structure}
 \usage{
-create_multi_lr_knock(Xl, Bl, err, m)
+create_multi_lr_knock(np_data.matrix.imp, Xl, Bl, err, m)
 }
 \arguments{
+\item{np_data.matrix.imp}{A numeric matrix of dimension n x p containing the
+imputed data.}
+
 \item{Xl}{A numeric matrix of dimension n x k containing latent factors.}
 
 \item{Bl}{A numeric matrix of dimension k x p containing factor loadings.}
@@ -64,7 +67,8 @@ np_data_imp <- sc_softImpute(np_data_centered, np_data_exp, X[,1:3], PC = min(np
 
 # Multi-lr Knockoff construction
 m <- 5
-multi_lr_knock <- create_multi_lr_knock(np_data_imp$Xl,
+multi_lr_knock <- create_multi_lr_knock(np_data_imp$X_imp,
+                                        np_data_imp$Xl,
                                         np_data_imp$Bl,
                                         np_data_imp$err,
                                         m)

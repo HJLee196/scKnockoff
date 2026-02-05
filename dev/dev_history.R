@@ -1,6 +1,7 @@
 # remove.packages("scKnockoff")
-
+# devtools::load_all()
 # dev/dev_history.R
+
 usethis::use_git_ignore(c("*.Rcheck/",
                           "*.tar.gz",
                           "revdep/",

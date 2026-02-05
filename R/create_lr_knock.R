@@ -1,5 +1,6 @@
 
 # Input:
+#  np_data.matrix.imp: The imputed data.
 #  Xl: Random matrix of latent factors.
 #  Bl: Matrix of deterministic factor loadings.
 #  err: Estimated variances (of the error matrix).
@@ -9,6 +10,8 @@
 
 #' Knockoff construction using low rank structure
 #'
+#' @param np_data.matrix.imp A numeric matrix of dimension n x p containing the
+#'   imputed data.
 #' @param Xl A numeric matrix of dimension n x k containing latent factors.
 #' @param Bl A numeric matrix of dimension k x p containing factor loadings.
 #' @param err A numeric vector of length p containing estimated error variances.
@@ -63,14 +66,15 @@
 #' np_data_imp <- sc_softImpute(np_data_centered, np_data_exp, X[,1:3], PC = min(np_data_exp.count)-5)
 #'
 #' # Low-rank Knockoff construction
-#' lr_knock <- create_lr_knock(np_data_imp$Xl,
-#'                          np_data_imp$Bl,
-#'                          np_data_imp$err)
+#' lr_knock <- create_lr_knock(np_data_imp$X_imp,
+#'                             np_data_imp$Xl,
+#'                             np_data_imp$Bl,
+#'                             np_data_imp$err)
 #'
 #' lr_knock <- rescale_knockoff(lr_knock,np_data_exp,np_data.avg)
 #'
 #' @export
-create_lr_knock <- function(Xl,Bl,err){
+create_lr_knock <- function(np_data.matrix.imp, Xl, Bl, err){
   Xl <- as.matrix(Xl)
   Bl <- as.matrix(Bl)
 
@@ -94,6 +98,9 @@ create_lr_knock <- function(Xl,Bl,err){
   }
 
   np_data.knockoff <- Xl%*%(Bl) + E
+
+  colnames(np_data.knockoff) <- colnames(np_data.matrix.imp)
+  rownames(np_data.knockoff) <- rownames(np_data.matrix.imp)
 
   return(np_data.knockoff)
 }

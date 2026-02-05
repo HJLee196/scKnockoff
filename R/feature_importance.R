@@ -125,7 +125,7 @@
 #' pbmc_small <- Seurat::SetIdent(object = pbmc_small, value = label_ad)
 #'
 #'
-#' W_imp <- feature_importance(pbmc_small,decomp_knk,bonf=TRUE,
+#' W_imp <- feature_importance(pbmc_small, decomp_knock, bonf=TRUE,
 #'                            ident.1 = 'y1', ident.2 = 'y2',
 #'                            test.use ="MAST")
 #'
@@ -313,7 +313,7 @@ feature_importance <- function(np_data.sub,
 
       np_data.full <-
         cbind(X_center, np_data.full)
-      np_data.full <- as(np_data.full, Class = "dgCMatrix")
+      np_data.full <- methods::as(np_data.full, Class = "dgCMatrix")
 
       cv_lasso_fit <-
         glmnet::cv.glmnet(y = label_Idents, x = np_data.full,
@@ -441,7 +441,7 @@ feature_importance <- function(np_data.sub,
       np_data.full <- cbind(X_center,
                             np_data.matrix_scale,
                             np_data.knockoff.scale)
-      np_data.full <- as(np_data.full, Class = "dgCMatrix")
+      np_data.full <- methods::as(np_data.full, Class = "dgCMatrix")
 
       cv_lasso_fit <-
         glmnet::cv.glmnet(y = label_Idents, x = np_data.full,

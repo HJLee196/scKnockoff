@@ -4,9 +4,12 @@
 \alias{create_lr_knock}
 \title{Knockoff construction using low rank structure}
 \usage{
-create_lr_knock(Xl, Bl, err)
+create_lr_knock(np_data.matrix.imp, Xl, Bl, err)
 }
 \arguments{
+\item{np_data.matrix.imp}{A numeric matrix of dimension n x p containing the
+imputed data.}
+
 \item{Xl}{A numeric matrix of dimension n x k containing latent factors.}
 
 \item{Bl}{A numeric matrix of dimension k x p containing factor loadings.}
@@ -60,9 +63,10 @@ np_data_centered <- sweep(np_data,2,np_data.avg,FUN = "-")*(np_data_exp)
 np_data_imp <- sc_softImpute(np_data_centered, np_data_exp, X[,1:3], PC = min(np_data_exp.count)-5)
 
 # Low-rank Knockoff construction
-lr_knock <- create_lr_knock(np_data_imp$Xl,
-                         np_data_imp$Bl,
-                         np_data_imp$err)
+lr_knock <- create_lr_knock(np_data_imp$X_imp,
+                            np_data_imp$Xl,
+                            np_data_imp$Bl,
+                            np_data_imp$err)
 
 lr_knock <- rescale_knockoff(lr_knock,np_data_exp,np_data.avg)
 
