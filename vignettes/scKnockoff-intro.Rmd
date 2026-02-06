@@ -40,7 +40,7 @@ make_toy_seurat_ad <- function(
     cells_per_donor_per_type = 50,
     n_batch = 2,
     # disease-associated genes
-    n_signals = 30,
+    n_signals = 50,
     # effect sizes (fold-changes on mean)
     signal_strength = 5,
     seed = 1
@@ -363,13 +363,20 @@ selected_lr <- knockfilter_select(W_imp = W_imp_lr, q = 0.1)
 selected_decomp <- knockfilter_select(W_imp = W_imp_decomp, q = 0.1)
 selected_multi_lr <- knockfilter_select(W_imp = W_imp_multi_lr, q = 0.1)
 selected_multi_decomp <- knockfilter_select(W_imp = W_imp_multi_decomp, q = 0.1)
+```
 
-true_signal <- Seurat_toy@misc$true_signal
+The eBH procedure can also be applied using `ebh_select` to select significant genes.
+
+```{r}
+selected_e_lr <- ebh_select(W_imp = W_imp_multi_lr, q = 0.1)
+selected_e_decomp <- ebh_select(W_imp = W_imp_multi_decomp, q = 0.1)
 ```
 
 We then evaluate the empirical false discovery rates (FDRs) and powers of the selected genes.
 
 ```{r}
+true_signal <- Seurat_toy@misc$true_signal
+
 print("LR knockoff - LCD")
 print((length(selected_lr) - sum(selected_lr %in% true_signal))/length(selected_lr)) # FDR
 print(sum(selected_lr %in% true_signal)/length(true_signal)) # Power
@@ -385,6 +392,14 @@ print(sum(selected_multi_lr %in% true_signal)/length(true_signal)) # Power
 print("Multi-decomp knockoff - LR")
 print((length(selected_multi_decomp) - sum(selected_multi_decomp %in% true_signal))/length(selected_multi_decomp)) # FDR
 print(sum(selected_multi_decomp %in% true_signal)/length(true_signal)) # Power
+
+print("e-LR knockoff - LR")
+print((length(selected_e_lr) - sum(selected_e_lr %in% true_signal))/length(selected_e_lr)) # FDR
+print(sum(selected_e_lr %in% true_signal)/length(true_signal)) # Power
+
+print("e-decomp knockoff - LR")
+print((length(selected_e_decomp) - sum(selected_e_decomp %in% true_signal))/length(selected_e_decomp)) # FDR
+print(sum(selected_e_decomp %in% true_signal)/length(true_signal)) # Power
 ```
 
 

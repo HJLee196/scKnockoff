@@ -72,13 +72,13 @@
 #'
 #' # Multi-decomp Knockoff construction
 #' m <- 2
-#' decomp_knk <- create_multi_decomp_knock(np_data_imp$X_imp,
-#'                                         np_data_imp$Xl,
-#'                                         np_data_imp$Bl,
-#'                                         np_data_imp$err,
-#'                                         np_data_imp$PC,
-#'                                         m)
-#' decomp_knk <- rescale_knockoff(decomp_knk, np_data_exp,np_data.avg)
+#' decomp_knock <- create_multi_decomp_knock(np_data_imp$X_imp,
+#'                                           np_data_imp$Xl,
+#'                                           np_data_imp$Bl,
+#'                                           np_data_imp$err,
+#'                                           np_data_imp$PC,
+#'                                           m)
+#' decomp_knock <- rescale_knockoff(decomp_knock, np_data_exp,np_data.avg)
 #'
 #' # Generate synthetic signal
 #' np_data.scale <- apply(np_data, 2, scale)
@@ -113,7 +113,7 @@
 #' pbmc_small <- Seurat::SetIdent(object = pbmc_small, value = label_ad)
 #'
 #'
-#' W_imp <- feature_importance(pbmc_small, decomp_knk, bonf=TRUE,
+#' W_imp <- feature_importance(pbmc_small, decomp_knock, bonf=TRUE,
 #'                             ident.1 = 'y1', ident.2 = 'y2',
 #'                             test.use = "LR")
 #'
