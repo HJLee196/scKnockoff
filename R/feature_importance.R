@@ -320,7 +320,7 @@ feature_importance <- function(np_data.sub,
                           nfolds = 10,
                           alpha = 1, # alpha = 1 means lasso
                           family = "binomial",
-                          standardize = FALSE)
+                          standardize = TRUE)
 
       cv_lasso_fit_best_lambda <- cv_lasso_fit[["lambda.1se"]] #lambda.1se #lambda.min
       cv_lasso_fit_coef <- Matrix::t(stats::coef(cv_lasso_fit, s = cv_lasso_fit_best_lambda))
@@ -448,7 +448,7 @@ feature_importance <- function(np_data.sub,
                           nfolds = 10,
                           alpha = 1, # alpha = 1 means lasso
                           family = "binomial",
-                          standardize = FALSE)
+                          standardize = TRUE)
 
       cv_lasso_fit_best_lambda <- cv_lasso_fit[["lambda.1se"]] #lambda.1se #lambda.min
       cv_lasso_fit_coef <- Matrix::t(stats::coef(cv_lasso_fit, s = cv_lasso_fit_best_lambda))

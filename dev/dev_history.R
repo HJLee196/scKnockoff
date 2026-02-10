@@ -13,7 +13,8 @@ usethis::use_git_ignore(c("*.Rcheck/",
                           ".DS_Store",
                           "*.zip",
                           "*.rds",
-                          "*.rda"
+                          "*.rda",
+                          "*.sh"
                           ))
 usethis::use_build_ignore("scKnockoff\\.Rproj")
 
