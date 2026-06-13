@@ -87,7 +87,7 @@
 full_process <- function(Seurat_data,
                          latent.vars_imp = NULL,
                          latent.vars_comp = NULL,
-                         PC,
+                         PC = NULL,
                          ident.1 = NULL,
                          ident.2 = NULL,
                          slot_name = "data",
@@ -108,8 +108,13 @@ full_process <- function(Seurat_data,
   }
 
   # PC
-  if (!is.numeric(PC) || length(PC) != 1L || is.na(PC) || PC <= 0 || PC != as.integer(PC)) {
-    stop("`PC` must be a positive integer.", call. = FALSE)
+  if (!is.null(PC) &&
+      (!is.numeric(PC) ||
+       length(PC) != 1L ||
+       is.na(PC) ||
+       PC <= 0 ||
+       PC != as.integer(PC))) {
+    stop("`PC` must be NULL or a positive integer.", call. = FALSE)
   }
 
   # m
@@ -254,7 +259,9 @@ full_process <- function(Seurat_data,
   } else {
     X_p <- ncol(X)
   }
-  feature.exp.ind <- which(np_data.matrix.exp.count > (PC + X_p + 1))
+
+  PC_num = ifelse(is.null(PC), yes = 0, no = PC)
+  feature.exp.ind <- which(np_data.matrix.exp.count > (PC_num + X_p + 1))
 
   if (length(feature.exp.ind) == 0) {
     stop(
@@ -279,14 +286,32 @@ full_process <- function(Seurat_data,
   np_data.matrix.fix <- (Matrix::colSums(np_data.matrix*np_data.matrix.exp))/np_data.matrix.exp.count # na.rm = T is removed
   np_data.matrix <- sweep(np_data.matrix,2,np_data.matrix.fix,FUN = "-")*(np_data.matrix.exp)
 
+  # If PC == NULL, BEMA is applied to estimate the rank.
+
+  if (is.null(PC)) {
+    ## Regress out the additional covariate based on our model assumption.
+    ## The regressing out is an approximate method rather than an exact one.
+    ## When additional covariates and latent factors are independent, this is the exact one.
+
+    # Matrix::colSums(np_data.matrix) |> abs() |> max() # Just to check if the dataset is centered properly.
+    X_0 <- sweep(X,2,colMeans(X),FUN = "-")
+    B_0 = solve(t(X_0)%*%X_0)%*%t(X_0)%*%np_data.matrix
+    np_data.matrix_regressed = (np_data.matrix - X_0 %*% B_0) |> as.matrix()
+    # np_data.matrix_regressed_new |> Matrix::colMeans() |> abs() |> max() # Just to check if the dataset is centered properly.
+
+    BEMA_result_list = SQM_Gamma(data = np_data.matrix_regressed, alpha = 0.2, beta_q = 0.25, n_mc = 500, verbose = FALSE)
+    PC_num = BEMA_result_list$estimated_rank
+  }
+
   #### Imputation ####
   np_data.matrix.exp <- np_data.matrix.exp*1
   np_data.matrix.imp <- sc_softImpute(np_data.matrix = np_data.matrix,
                                       np_data.matrix.exp = np_data.matrix.exp,
                                       X = X,
-                                      PC = PC,
+                                      PC = PC_num,
                                       max_it = max_it)
 
+  np_data.matrix.imp_temp = as.matrix(np_data.matrix.imp$X_imp)
 
   #### Decomp Knockoff construction ####
   if (m == 1){
@@ -321,8 +346,14 @@ full_process <- function(Seurat_data,
                               test.use = test.use, latent.vars = latent.vars_comp)
 
 
-  selected <- knockfilter_select(W_imp = W_imp, q = q, m = m)
+  selected_index <- knockfilter_select(W_imp = W_imp, q = q, m = m)
 
-  genes <- if (is.null(selected)) NULL else feature.names.new[selected]
-  return(list(selected = selected, genes = genes))
+  variables_name <-
+    if (is.null(selected_index)) NULL else feature.names.new[selected_index]
+
+  return(list(selected_index = selected_index,
+              variables_name = variables_name,
+              decomp_knock = decomp_knock,
+              W_imp = W_imp,
+              PC = PC_num))
 }
