@@ -29,7 +29,8 @@ attachment::att_amend_desc(
 devtools::document()
 
 # 3) tests
-devtools::test()
+# devtools::test()
+devtools::check()
 
 # 4) examples
 devtools::run_examples()
