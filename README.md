@@ -12,8 +12,13 @@ devtools::install_github("HJLee196/scKnockoff")
 ```
 
 ## Documentation
-- [Vignette](vignettes/scKnockoff-intro.md)
-- [Vignette](vignettes/scKnockoff-intro-easy.md)
+
+* [Vignette](vignettes/scKnockoff-intro.md)
+
+  * Provides a detailed introduction to the package and demonstrates the usage of its main functions.
+* [Vignette - easy](vignettes/scKnockoff-intro-easy.md)
+
+  * Provides a simplified workflow in which the main analysis steps are combined into a single function call.
 
 ## License
 
