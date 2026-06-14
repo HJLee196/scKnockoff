@@ -1,27 +1,10 @@
----
-title: "Introduction to scKnockoff - Easy"
-author: "Hyunjae Lee"
-output: github_document
-vignette: >
-  %\VignetteIndexEntry{Introduction to scKnockoff - Easy}
-  %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
-bibliography: references.bib
----
-
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>",
-  warning = FALSE,
-  message = FALSE
-)
-```
+Introduction to scKnockoff - Easy
+================
+Hyunjae Lee
 
 # 1. Load scKnockoff
 
-```{r}
+``` r
 # if (!requireNamespace("scKnockoff", quietly = TRUE)) {
 #   devtools::install_github("HJLee196/scKnockoff")
 # }
@@ -31,9 +14,16 @@ library(scKnockoff)
 
 # 2. Create dataset
 
-We generate a synthetic single-cell RNA-seq dataset from the latent factor model \(G = X B_0 + A B_1 + E\), where \(X\) contains observed covariates such as disease status, batch, age, and cell type. Disease status is assigned at the donor level, and a subset of genes is assigned nonzero disease effects in \(B_0\), serving as the ground-truth signals. The latent expression matrix \(G\) is transformed into cell-specific relative expression probabilities, from which observed UMI counts are sampled using a multinomial model.
+We generate a synthetic single-cell RNA-seq dataset from the latent
+factor model $G = X B_0 + A B_1 + E$, where $X$ contains observed
+covariates such as disease status, batch, age, and cell type. Disease
+status is assigned at the donor level, and a subset of genes is assigned
+nonzero disease effects in $B_0$, serving as the ground-truth signals.
+The latent expression matrix $G$ is transformed into cell-specific
+relative expression probabilities, from which observed UMI counts are
+sampled using a multinomial model.
 
-```{r}
+``` r
 make_toy_seurat_ad <- function(
     n_genes = 1000,
     donors_per_group = 6,
@@ -307,14 +297,17 @@ Seurat_toy = make_toy_seurat_ad(n_genes = 100,
                                 # latent dimension
                                 r = 5,
                                 seed = 1)
-
 ```
 
 # 3. Add the cellular detection rate (CDR) as a latent variable in the toy dataset.
 
-In addition to `batch`, `cell_type`, and `age`, we compute and include the cellular detection rate (CDR) as a latent variable. Here, `CDR` summarizes the overall detection level of each cell and is commonly used to adjust for cell-level technical variation in single-cell RNA-seq data.
+In addition to `batch`, `cell_type`, and `age`, we compute and include
+the cellular detection rate (CDR) as a latent variable. Here, `CDR`
+summarizes the overall detection level of each cell and is commonly used
+to adjust for cell-level technical variation in single-cell RNA-seq
+data.
 
-```{r}
+``` r
 feature.names <- rownames(Seurat_toy)
 
 np_data.count <- Seurat::GetAssayData(object = Seurat_toy, layer = "count")
@@ -331,11 +324,21 @@ Seurat_toy$CDR <- CDR
 
 # 4. Select the significant genes using `full_process`
 
-We then apply `full_process()` to identify genes associated with disease status. In this example, we compare cells from the AD group against cells from the Control group by setting `ident.1 = "AD"` and `ident.2 = "Control"`. Setting `PC = NULL` allows the number of principal components to be estimated automatically using the bulk eigenvalue matching analysis (BEMA) method [@ke2023]. The covariates `batch`, `cell_type`, `age`, and `CDR` are included in both `latent.vars_imp` and `latent.vars_comp` to adjust for potential confounding effects during the imputation and comparison steps. 
+We then apply `full_process()` to identify genes associated with disease
+status. In this example, we compare cells from the AD group against
+cells from the Control group by setting `ident.1 = "AD"` and
+`ident.2 = "Control"`. Setting `PC = NULL` allows the number of
+principal components to be estimated automatically using the bulk
+eigenvalue matching analysis (BEMA) method (Ke et al. 2023). The
+covariates `batch`, `cell_type`, `age`, and `CDR` are included in both
+`latent.vars_imp` and `latent.vars_comp` to adjust for potential
+confounding effects during the imputation and comparison steps.
 
-We use `test.use = "LCD"` to construct feature-importance statistics based on the Lasso coefficient difference statistic, and `m = 1` specifies that a single knockoff copy is generated for each gene.
+We use `test.use = "LCD"` to construct feature-importance statistics
+based on the Lasso coefficient difference statistic, and `m = 1`
+specifies that a single knockoff copy is generated for each gene.
 
-```{r}
+``` r
 result_LCD = 
   full_process(Seurat_data = Seurat_toy,
                PC = NULL,
@@ -347,20 +350,28 @@ result_LCD =
                m = 1)
 ```
 
-We then evaluate the false discovery proportion (FDP) and power of the selected genes.
+We then evaluate the false discovery proportion (FDP) and power of the
+selected genes.
 
-```{r}
+``` r
 true_signal <- Seurat_toy@misc$true_signal
 
 print("FDP and Power")
+#> [1] "FDP and Power"
 print((length(result_LCD$selected) - sum(result_LCD$selected %in% true_signal))/length(result_LCD$selected)) # FDR
+#> [1] 0
 print(sum(result_LCD$selected %in% true_signal)/length(true_signal)) # Power
-
+#> [1] 0.94
 ```
 
-The feature-importance statistics can also be constructed using other testing methods supported by `Seurat::FindMarkers()`. In addition, setting `m > 1` enables the use of multiple knockoffs. In the following example, we use `test.use = "MAST"` and generate five knockoff copies for each gene by setting `m = 5`. Here, we set `PC = 5`, corresponding to the true number of latent factors used to generate the toy dataset.
+The feature-importance statistics can also be constructed using other
+testing methods supported by `Seurat::FindMarkers()`. In addition,
+setting `m > 1` enables the use of multiple knockoffs. In the following
+example, we use `test.use = "MAST"` and generate five knockoff copies
+for each gene by setting `m = 5`. Here, we set `PC = 5`, corresponding
+to the true number of latent factors used to generate the toy dataset.
 
-```{r}
+``` r
 result_MAST = 
   full_process(Seurat_data = Seurat_toy,
                PC = 5,
@@ -372,29 +383,50 @@ result_MAST =
                m = 5)
 ```
 
-We then evaluate the false discovery proportion (FDP) and power of the selected genes.
+We then evaluate the false discovery proportion (FDP) and power of the
+selected genes.
 
-```{r}
+``` r
 print("FDP and Power")
+#> [1] "FDP and Power"
 print((length(result_MAST$selected) - sum(result_MAST$selected %in% true_signal))/length(result_MAST$selected)) # FDR
+#> [1] 0
 print(sum(result_MAST$selected %in% true_signal)/length(true_signal)) # Power
-
+#> [1] 0.94
 ```
 
-The ground-truth signal genes and the genes selected by LCD and MAST are shown below:
+The ground-truth signal genes and the genes selected by LCD and MAST are
+shown below:
 
-```{r}
+``` r
 cat("Ground-truth signal genes:\n")
+#> Ground-truth signal genes:
 cat(Seurat_toy@misc$true_signal_genes, sep = ", ")
+#> gene2, gene4, gene5, gene6, gene7, gene8, gene9, gene10, gene11, gene12, gene13, gene16, gene17, gene19, gene21, gene22, gene23, gene24, gene29, gene33, gene34, gene39, gene41, gene42, gene43, gene46, gene58, gene60, gene63, gene65, gene67, gene68, gene69, gene70, gene72, gene74, gene75, gene78, gene79, gene81, gene82, gene85, gene86, gene88, gene90, gene92, gene93, gene95, gene97, gene100
 cat("\n\n")
 
 cat("Genes selected by LCD (m=1):\n")
+#> Genes selected by LCD (m=1):
 cat(result_LCD$variables_name, sep = ", ")
+#> gene2, gene4, gene5, gene6, gene8, gene9, gene10, gene11, gene12, gene13, gene16, gene17, gene19, gene21, gene22, gene23, gene24, gene29, gene33, gene39, gene41, gene42, gene43, gene46, gene58, gene60, gene63, gene65, gene67, gene69, gene70, gene72, gene74, gene75, gene78, gene79, gene81, gene82, gene85, gene86, gene88, gene90, gene92, gene93, gene95, gene97, gene100
 cat("\n\n")
 
 cat("Genes selected by MAST (m=5):\n")
+#> Genes selected by MAST (m=5):
 cat(result_MAST$variables_name, sep = ", ")
+#> gene2, gene4, gene5, gene6, gene8, gene9, gene10, gene11, gene12, gene13, gene16, gene17, gene19, gene21, gene22, gene23, gene24, gene29, gene33, gene34, gene39, gene42, gene43, gene46, gene58, gene60, gene63, gene65, gene67, gene69, gene70, gene72, gene74, gene75, gene78, gene79, gene81, gene82, gene85, gene86, gene88, gene90, gene92, gene93, gene95, gene97, gene100
 cat("\n")
-
 ```
 
+<div id="refs" class="references csl-bib-body hanging-indent">
+
+<div id="ref-ke2023" class="csl-entry">
+
+Ke, Zheng Tracy, Yucong Ma, and Xihong Lin. 2023. “Estimation of the
+Number of Spiked Eigenvalues in a Covariance Matrix by Bulk Eigenvalue
+Matching Analysis.” *Journal of the American Statistical Association*
+118 (541): 374–92.
+
+</div>
+
+</div>

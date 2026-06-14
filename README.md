@@ -13,6 +13,7 @@ devtools::install_github("HJLee196/scKnockoff")
 
 ## Documentation
 - [Vignette](vignettes/scKnockoff-intro.md)
+- [Vignette](vignettes/scKnockoff-intro-easy.md)
 
 ## License
 

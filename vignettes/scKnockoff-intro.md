@@ -14,149 +14,289 @@ library(scKnockoff)
 
 # 2. Create dataset
 
-We generate synthetic disease labels using a logistic model based on
-standardized expression values, with a subset of genes serving as
-ground-truth signals.
+We generate a synthetic single-cell RNA-seq dataset from the latent
+factor model $G = X B_0 + A B_1 + E$, where $X$ contains observed
+covariates such as disease status, batch, age, and cell type. Disease
+status is assigned at the donor level, and a subset of genes is assigned
+nonzero disease effects in $B_0$, serving as the ground-truth signals.
+The latent expression matrix $G$ is transformed into cell-specific
+relative expression probabilities, from which observed UMI counts are
+sampled using a multinomial model.
 
 ``` r
 make_toy_seurat_ad <- function(
-    n_genes = 100,
+    n_genes = 1000,
     donors_per_group = 6,
     cell_types = c("Astro", "Micro", "Neuron"),
     cells_per_donor_per_type = 50,
     n_batch = 2,
     # disease-associated genes
     n_signals = 50,
-    # effect sizes (fold-changes on mean)
-    signal_strength = 5,
+    # fold-change on relative abundance scale
+    signal_strength = 2,
+    # latent dimension
+    r = 5,
+    # noise level in Gaussian latent layer
+    sigma = 0.5,
+    # library size distribution
+    mean_umi = 5000,
+    lib_size_sd = 0.4,
+    # effect sizes for observed covariates
+    age_effect_sd = 0.05,
+    batch_effect_sd = 0.15,
+    cell_type_effect_sd = 0.25,
+    # loading sparsity
+    loading_prop = 0.2,
+    loading_sd = 0.7,
+    normalize = TRUE,
+    scale_data = TRUE,
     seed = 1
 ) {
   if (!requireNamespace("Seurat", quietly = TRUE)) {
     stop("Seurat is required to build the toy Seurat object. Install Seurat or skip this example.")
   }
-    
+
+  if (!requireNamespace("Matrix", quietly = TRUE)) {
+    stop("Matrix is required to create a sparse count matrix.")
+  }
+
   set.seed(seed)
-  
+
+  # 1. Metadata
+
   n_types <- length(cell_types)
   n_donors <- 2 * donors_per_group
   donors <- paste0("D", seq_len(n_donors))
-  
-  # assign batch by donor (simple, realistic confounding possibility)
-  batch_by_donor <- sample(paste0("B", seq_len(n_batch)), size = n_donors, replace = TRUE)
+
+  donor_disease <- rep(c("Control", "AD"), each = donors_per_group)
+  names(donor_disease) <- donors
+
+  batch_levels <- paste0("B", seq_len(n_batch))
+  batch_by_donor <- sample(batch_levels, size = n_donors, replace = TRUE)
   names(batch_by_donor) <- donors
-  
-  # total cells
+
+  donor_age <- round(runif(n_donors, 65, 90))
+  names(donor_age) <- donors
+
   n_cells <- n_donors * n_types * cells_per_donor_per_type
-  
-  # cell-level metadata
+
   meta <- data.frame(
     cell_id = paste0("cell", seq_len(n_cells)),
     donor = rep(donors, each = n_types * cells_per_donor_per_type),
     cell_type = rep(rep(cell_types, each = cells_per_donor_per_type), times = n_donors),
     stringsAsFactors = FALSE
   )
-  
+
+  meta$disease <- unname(donor_disease[meta$donor])
   meta$batch <- unname(batch_by_donor[meta$donor])
-  
-  # add a numeric covariate (optional example): library size factor or "age"
-  # keep it simple and small effect
-  donor_age <- round(runif(n_donors, 65, 90))
-  names(donor_age) <- donors
   meta$age <- unname(donor_age[meta$donor])
-  
-  # gene names
+
+  meta$disease <- factor(meta$disease, levels = c("Control", "AD"))
+  meta$batch <- factor(meta$batch, levels = batch_levels)
+  meta$cell_type <- factor(meta$cell_type, levels = cell_types)
+
   genes <- paste0("gene", seq_len(n_genes))
-  
-  # donor random effect on mean (log-normal)
-  donor_effect <- rnorm(n_donors, mean = 0, sd = 0.25)
-  names(donor_effect) <- donors
-  
-  # batch random effect on mean (log-normal)
-  batch_levels <- paste0("B", seq_len(n_batch))
-  batch_effect <- rnorm(n_batch, mean = 0, sd = 0.15)
-  names(batch_effect) <- batch_levels
-  
-  # cell random effect on mean (log-normal)
-  cell_effect <- rnorm(length(cell_types), mean = 0, sd = 0.15)
-  names(cell_effect) <- cell_types
-  
-  # build counts (genes x cells)
-  counts <- matrix(0L, nrow = n_genes, ncol = n_cells)
-  rownames(counts) <- genes
-  colnames(counts) <- meta$cell_id
-  
-  # baseline gene means
-  mu0 <- runif(n_genes, 0.02, 5)        # baseline expression
-  size_nb <- 1                          # NB dispersion-ish parameter
-  
-  for (j in seq_len(n_cells)) {
-    donor_j <- meta$donor[j]
-    batch_j <- meta$batch[j]
-    type_j <- meta$cell_type[j]
-    
-    # start from baseline mean
-    mu <- mu0
-    
-    # apply donor + batch + library effects multiplicatively
-    mu <- mu * exp(donor_effect[donor_j]) * exp(batch_effect[batch_j]) * exp(cell_effect[type_j])
-    
-    # sample counts from NB
-    counts[, j] <- stats::rnbinom(n_genes, size = size_nb, mu = mu)
+
+  # 2. Observed covariates X
+
+  # This is the X in G = X B0 + A B1 + E.
+  # diseaseAD coefficient defines true disease-associated genes.
+
+  X <- stats::model.matrix(
+    ~ disease + batch + age + cell_type,
+    data = meta
+  )
+
+  # Standardize age column only, if present.
+  if ("age" %in% colnames(X)) {
+    X[, "age"] <- as.numeric(scale(X[, "age"]))
   }
-  
-  # build Seurat object
-  seu <- Seurat::CreateSeuratObject(counts = counts, project = "toyAD")
+
+  q <- ncol(X)
+
+  # 3. Construct B0
+
+  B0 <- matrix(0, nrow = q, ncol = n_genes)
+  rownames(B0) <- colnames(X)
+  colnames(B0) <- genes
+
+  # Baseline gene abundance through intercept.
+  # This makes genes have heterogeneous baseline expression.
+  baseline_log_abundance <- rnorm(n_genes, mean = 0, sd = 1)
+  B0["(Intercept)", ] <- baseline_log_abundance
+
+  # Small age effects.
+  if ("age" %in% rownames(B0)) {
+    B0["age", ] <- rnorm(n_genes, mean = 0, sd = age_effect_sd)
+  }
+
+  # Batch effects.
+  batch_rows <- grep("^batch", rownames(B0), value = TRUE)
+  if (length(batch_rows) > 0L) {
+    for (rr in batch_rows) {
+      B0[rr, ] <- rnorm(n_genes, mean = 0, sd = batch_effect_sd)
+    }
+  }
+
+  # Cell-type effects.
+  cell_type_rows <- grep("^cell_type", rownames(B0), value = TRUE)
+  if (length(cell_type_rows) > 0L) {
+    for (rr in cell_type_rows) {
+      B0[rr, ] <- rnorm(n_genes, mean = 0, sd = cell_type_effect_sd)
+    }
+  }
+
+  # Disease signals.
+  signal_genes <- integer(0)
+  signal_gene_names <- character(0)
+
+  if (n_signals > 0L) {
+    signal_genes <- sort(sample(seq_len(n_genes), n_signals))
+    signal_gene_names <- genes[signal_genes]
+
+    disease_row <- "diseaseAD"
+
+    if (!disease_row %in% rownames(B0)) {
+      stop("Could not find `diseaseAD` in the design matrix.", call. = FALSE)
+    }
+
+    n_up <- ceiling(n_signals / 2)
+    n_down <- n_signals - n_up
+
+    disease_effect <- c(
+      rep(log(signal_strength), n_up),
+      rep(-log(signal_strength), n_down)
+    )
+
+    disease_effect <- sample(disease_effect)
+
+    B0[disease_row, signal_genes] <- disease_effect
+  }
+
+  # 4. Latent factors A and loadings B1
+
+  A <- matrix(
+    stats::rnorm(n_cells * r),
+    nrow = n_cells,
+    ncol = r
+  )
+  rownames(A) <- meta$cell_id
+  colnames(A) <- paste0("LF", seq_len(r))
+
+  B1 <- matrix(0, nrow = r, ncol = n_genes)
+  rownames(B1) <- colnames(A)
+  colnames(B1) <- genes
+
+  n_loading_genes <- max(1L, floor(loading_prop * n_genes))
+
+  for (k in seq_len(r)) {
+    idx <- sample(seq_len(n_genes), n_loading_genes)
+    B1[k, idx] <- stats::rnorm(length(idx), mean = 0, sd = loading_sd)
+  }
+
+  # 5. Gaussian latent expression layer
+
+  # G = X B0 + A B1 + E
+
+  E <- matrix(
+    stats::rnorm(n_cells * n_genes, mean = 0, sd = sigma),
+    nrow = n_cells,
+    ncol = n_genes
+  )
+
+  G <- X %*% B0 + A %*% B1 + E
+  rownames(G) <- meta$cell_id
+  colnames(G) <- genes
+
+  # 6. Library sizes and multinomial counts
+
+  library_size <- round(
+    exp(stats::rnorm(n_cells, mean = log(mean_umi), sd = lib_size_sd))
+  )
+
+  library_size[library_size < 1L] <- 1L
+
+  counts <- matrix(
+    0L,
+    nrow = n_genes,
+    ncol = n_cells,
+    dimnames = list(genes, meta$cell_id)
+  )
+
+  for (i in seq_len(n_cells)) {
+    # Stable softmax.
+    eta <- G[i, ]
+    eta <- eta - max(eta)
+
+    prob <- exp(eta)
+    prob <- prob / sum(prob)
+
+    counts[, i] <- as.integer(
+      stats::rmultinom(
+        n = 1,
+        size = library_size[i],
+        prob = prob
+      )
+    )
+  }
+
+  counts <- Matrix::Matrix(counts, sparse = TRUE)
+
+  # 7. Build Seurat object
+
+  seu <- Seurat::CreateSeuratObject(
+    counts = counts,
+    project = "toyAD"
+  )
+
   seu$donor <- meta$donor
+  seu$disease <- meta$disease
   seu$cell_type <- meta$cell_type
   seu$batch <- meta$batch
   seu$age <- meta$age
-  
-  # data and scale.data
-  seu <- Seurat::NormalizeData(seu, verbose = FALSE)
-  seu <- Seurat::ScaleData(seu, features = rownames(seu), verbose = FALSE)
-  
-  # Generate synthetic signal
-  seu_data.matrix <- Seurat::GetAssayData(object = seu, layer = "data")
-  seu_data.matrix.scale <- apply(Matrix::t(seu_data.matrix), 2, scale)
-  colnames(seu_data.matrix.scale) <- rownames(seu_data.matrix)
-  rownames(seu_data.matrix.scale) <- colnames(seu_data.matrix)
-  
-  n <- nrow(seu_data.matrix.scale)
-  p <- ncol(seu_data.matrix.scale)
-  
-  norm_coef <- rep(0, p)
-  tmp_coef <- rep(0, n_signals)
-  
-  for(i in 1:n_signals){
-    new_coef <- 0
-    # truncate the coefficients which are too small
-    while(isTRUE((new_coef)^2 < (signal_strength^2)*2*log(p)/n)){
-      new_coef <- rnorm(1,0,signal_strength*sqrt(2*log(p)/n))
-    }
-    
-    tmp_coef[i] <- new_coef
-  }
-  
-  sig_coef <- sample(1:p, n_signals)
-  norm_coef[sig_coef] <- tmp_coef
-  
-  label_p <- 1/(1 + exp(- seu_data.matrix.scale %*% norm_coef))
-  
-  # Create random labels
-  label_binom <- rbinom(n = length(label_p), size = 1, prob = label_p)
-  label_ad <- ifelse((label_binom>=0.5), "AD", "Control")
-  
-  seu$disease = label_ad
+  seu$library_size_true <- library_size
+
   Seurat::Idents(seu) <- "disease"
-  
-  # store truth for vignette evaluation 
-  seu@misc$true_signal <- sort(sig_coef)
-  seu@misc$norm_coef <- norm_coef
-  
+
+  if (isTRUE(normalize)) {
+    seu <- Seurat::NormalizeData(seu, verbose = FALSE)
+  }
+
+  if (isTRUE(scale_data)) {
+    seu <- Seurat::ScaleData(seu, features = rownames(seu), verbose = FALSE)
+  }
+
+  # 8. Store ground truth
+
+  beta_disease <- rep(0, n_genes)
+  names(beta_disease) <- genes
+
+  if (n_signals > 0L) {
+    beta_disease[signal_genes] <- B0["diseaseAD", signal_genes]
+  }
+
+  seu@misc$true_signal <- signal_genes
+  seu@misc$true_signal_genes <- signal_gene_names
+  seu@misc$beta_disease <- beta_disease
+  seu@misc$B0 <- B0
+  seu@misc$B1 <- B1
+  seu@misc$A <- A
+  seu@misc$X <- X
+  seu@misc$G <- G
+  seu@misc$library_size_true <- library_size
+  seu@misc$simulation_model <- "G = X B0 + A B1 + E; counts_i ~ Multinomial(N_i, softmax(G_i))"
+
   seu
 }
 
-Seurat_toy = make_toy_seurat_ad(seed = 1)
+Seurat_toy = make_toy_seurat_ad(n_genes = 100, 
+                                donors_per_group = 6,
+                                n_signals = 50,
+                                # fold-change on relative abundance scale
+                                signal_strength = 2,
+                                # latent dimension
+                                r = 5,
+                                seed = 1)
 ```
 
 # 3. Imputation using sc-softImpute
@@ -365,51 +505,51 @@ selected_e_lr <- ebh_select(W_imp = W_imp_multi_lr, q = 0.1)
 selected_e_decomp <- ebh_select(W_imp = W_imp_multi_decomp, q = 0.1)
 ```
 
-We then evaluate the empirical false discovery rates (FDRs) and powers
-of the selected genes.
+We then evaluate the false discovery proportions (FDPs) and powers of
+the selected genes.
 
 ``` r
 true_signal <- Seurat_toy@misc$true_signal
 
 print("LR knockoff - LCD")
 #> [1] "LR knockoff - LCD"
-print((length(selected_lr) - sum(selected_lr %in% true_signal))/length(selected_lr)) # FDR
+print((length(selected_lr) - sum(selected_lr %in% true_signal))/length(selected_lr)) # FDP
 #> [1] 0
 print(sum(selected_lr %in% true_signal)/length(true_signal)) # Power
-#> [1] 0.82
+#> [1] 0.94
 
 print("Decomp knockoff - LCD")
 #> [1] "Decomp knockoff - LCD"
-print((length(selected_decomp) - sum(selected_decomp %in% true_signal))/length(selected_decomp)) # FDR
-#> [1] 0.0212766
+print((length(selected_decomp) - sum(selected_decomp %in% true_signal))/length(selected_decomp)) # FDP
+#> [1] 0
 print(sum(selected_decomp %in% true_signal)/length(true_signal)) # Power
-#> [1] 0.92
+#> [1] 0.94
 
 print("Multi-LR knockoff - LR")
 #> [1] "Multi-LR knockoff - LR"
-print((length(selected_multi_lr) - sum(selected_multi_lr %in% true_signal))/length(selected_multi_lr)) # FDR
+print((length(selected_multi_lr) - sum(selected_multi_lr %in% true_signal))/length(selected_multi_lr)) # FDP
 #> [1] 0
 print(sum(selected_multi_lr %in% true_signal)/length(true_signal)) # Power
-#> [1] 0.18
+#> [1] 0.94
 
 print("Multi-decomp knockoff - LR")
 #> [1] "Multi-decomp knockoff - LR"
-print((length(selected_multi_decomp) - sum(selected_multi_decomp %in% true_signal))/length(selected_multi_decomp)) # FDR
+print((length(selected_multi_decomp) - sum(selected_multi_decomp %in% true_signal))/length(selected_multi_decomp)) # FDP
 #> [1] 0
 print(sum(selected_multi_decomp %in% true_signal)/length(true_signal)) # Power
-#> [1] 0.32
+#> [1] 0.94
 
 print("e-LR knockoff - LR")
 #> [1] "e-LR knockoff - LR"
-print((length(selected_e_lr) - sum(selected_e_lr %in% true_signal))/length(selected_e_lr)) # FDR
-#> [1] NaN
-print(sum(selected_e_lr %in% true_signal)/length(true_signal)) # Power
+print((length(selected_e_lr) - sum(selected_e_lr %in% true_signal))/length(selected_e_lr)) # FDP
 #> [1] 0
+print(sum(selected_e_lr %in% true_signal)/length(true_signal)) # Power
+#> [1] 0.82
 
 print("e-decomp knockoff - LR")
 #> [1] "e-decomp knockoff - LR"
-print((length(selected_e_decomp) - sum(selected_e_decomp %in% true_signal))/length(selected_e_decomp)) # FDR
-#> [1] NaN
-print(sum(selected_e_decomp %in% true_signal)/length(true_signal)) # Power
+print((length(selected_e_decomp) - sum(selected_e_decomp %in% true_signal))/length(selected_e_decomp)) # FDP
 #> [1] 0
+print(sum(selected_e_decomp %in% true_signal)/length(true_signal)) # Power
+#> [1] 0.56
 ```
