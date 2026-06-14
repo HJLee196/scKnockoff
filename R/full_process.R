@@ -42,8 +42,14 @@
 #' level \code{q}.
 #'
 #' @return
-#' A list containing the indices of selected variables and the corresponding
-#' variable names.
+#' A list containing:
+#' \describe{
+#'   \item{selected_index}{Indices of the selected variables.}
+#'   \item{variables_name}{Names of the selected variables.}
+#'   \item{decomp_knock}{The generated knockoff variables used in the analysis.}
+#'   \item{W_imp}{Feature importance statistics used for variable selection.}
+#'   \item{PC}{Estimated or specified rank used in the matrix decomposition.}
+#' }
 #'
 #' @examples
 #' # Read a dataset from the Seurat package
