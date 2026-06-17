@@ -3,7 +3,7 @@
 #' This function generates a toy single-cell RNA-seq dataset with disease
 #' labels, observed covariates, latent factors, and ground-truth signal genes.
 #' The simulated latent expression layer follows
-#' \eqn{G = X B0 + A B1 + E}, where \eqn{G} is interpreted as a Gaussian
+#' \eqn{G = X B_0 + A B_1 + E}, where \eqn{G} is interpreted as a Gaussian
 #' log-mean expression matrix. Observed UMI-like counts are generated from
 #' \eqn{Y_{ij} \sim Poisson(\mu_{ij})}, where
 #' \eqn{\mu_{ij} = \exp(G_{ij})}, up to cell-specific library size scaling.
@@ -17,7 +17,8 @@
 #' @param signal_strength Fold change for disease-associated genes on the
 #'   expression scale.
 #' @param r Number of latent factors.
-#' @param sigma Standard deviation of Gaussian noise in the log-expression layer.
+#' @param sigma Standard deviation of Gaussian noise in the log-mean expression
+#'   layer.
 #' @param mean_umi Target mean library size for the generated count matrix.
 #' @param lib_size_sd Standard deviation of the log-library-size factor.
 #' @param age_effect_sd Standard deviation of age effects across genes.
@@ -36,7 +37,7 @@
 #' and the names of the ground-truth signal genes are stored in
 #' \code{object@misc$true_signal_genes}. The object also stores simulation
 #' components such as \code{B0}, \code{B1}, \code{A}, \code{X}, \code{G},
-#' \code{mu}, and the true library sizes in \code{object@misc}.
+#' \code{mu}, and the observed library sizes in \code{object@misc}.
 #'
 #' @export
 make_toy_seurat_ad <- function(
