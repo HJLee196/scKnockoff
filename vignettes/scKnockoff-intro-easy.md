@@ -2,6 +2,12 @@ Introduction to scKnockoff - Easy
 ================
 Hyunjae Lee
 
+This vignette demonstrates a simplified workflow for applying
+`scKnockoff` to a toy single-cell RNA-seq dataset. The main analysis
+steps, including imputation, knockoff generation, feature-importance
+calculation, and gene selection, are combined into a single function
+call using `full_process()`.
+
 # 1. Load scKnockoff
 
 ``` r
@@ -12,7 +18,7 @@ Hyunjae Lee
 library(scKnockoff)
 ```
 
-# 2. Create dataset
+# 2. Create Dataset
 
 For convenience, the package provides `make_toy_seurat_ad()`, which
 generates a toy Seurat object under a Gaussian latent-factor model. The
@@ -32,20 +38,22 @@ generated from a Poisson model.
 
 ``` r
 
-Seurat_toy = make_toy_seurat_ad(n_genes = 100, 
+Seurat_toy = make_toy_seurat_ad(n_genes = 200, 
                                 donors_per_group = 6,
                                 n_signals = 50,
                                 # fold-change on relative abundance scale
                                 signal_strength = 2,
                                 # latent dimension
                                 r = 5,
-                                seed = 1)
+                                # standard deviation of noise
+                                sigma = 2,
+                                seed = 2)
 ```
 
-# 3. Add the cellular detection rate (CDR) as a latent variable in the toy dataset.
+# 3. Add the Cellular Detection Rate (CDR)
 
 In addition to `batch`, `cell_type`, and `age`, we compute and include
-the cellular detection rate (CDR) as a latent variable. Here, `CDR`
+the cellular detection rate (CDR) as an observed covariate. Here, `CDR`
 summarizes the overall detection level of each cell and is commonly used
 to adjust for cell-level technical variation in single-cell RNA-seq
 data.
@@ -55,17 +63,19 @@ feature.names <- rownames(Seurat_toy)
 
 np_data.count <- Seurat::GetAssayData(object = Seurat_toy, layer = "count")
 
-np_data.matrix.exp <- Matrix::t(np_data.count > 0) # indicator matrix for expressed genes,
+# Cell-by-gene indicator matrix: 1 if a gene is expressed in a cell.
+np_data.matrix.exp <- Matrix::t(np_data.count > 0)
+# Number of cells in which each gene is expressed.
 np_data.matrix.exp.count <- Matrix::colSums(np_data.matrix.exp)
 
 # Calculate cellular detection rate (CDR)
-np_data.matrix <- np_data.count # do not transpose here. Keep the genes as rows.
+# Fraction of expressed genes in each cell.
+CDR <- Matrix::rowMeans(np_data.matrix.exp)
 
-CDR <- Matrix::rowMeans(np_data.matrix.exp) # expressed genes in each CELL
 Seurat_toy$CDR <- CDR
 ```
 
-# 4. Select the significant genes using `full_process`
+# 4. Select Significant Genes Using `full_process`
 
 We then apply `full_process()` to identify genes associated with disease
 status. In this example, we compare cells from the AD group against
@@ -78,7 +88,7 @@ covariates `batch`, `cell_type`, `age`, and `CDR` are included in both
 confounding effects during the imputation and comparison steps.
 
 We use `test.use = "LCD"` to construct feature-importance statistics
-based on the Lasso coefficient difference statistic, and `m = 1`
+based on the lasso coefficient difference statistic, and `m = 1`
 specifies that a single knockoff copy is generated for each gene.
 
 ``` r
@@ -99,12 +109,24 @@ selected genes.
 ``` r
 true_signal <- Seurat_toy@misc$true_signal
 
-print("FDP and Power")
-#> [1] "FDP and Power"
-print((length(result_LCD$selected) - sum(result_LCD$selected %in% true_signal))/length(result_LCD$selected)) # FDR
-#> [1] 0
-print(sum(result_LCD$selected %in% true_signal)/length(true_signal)) # Power
-#> [1] 0.84
+compute_fdp <- function(selected, true_signal) {
+  if (length(selected) == 0) return(0)
+  (length(selected) - sum(selected %in% true_signal)) / length(selected)
+}
+
+compute_power <- function(selected, true_signal) {
+  sum(selected %in% true_signal) / length(true_signal)
+}
+
+lcd_results <- data.frame(
+  Method = "LCD (m = 1)",
+  FDP = compute_fdp(result_LCD$selected, true_signal),
+  Power = compute_power(result_LCD$selected, true_signal)
+)
+
+lcd_results
+#>        Method       FDP Power
+#> 1 LCD (m = 1) 0.1403509  0.98
 ```
 
 The feature-importance statistics can also be constructed using other
@@ -126,16 +148,23 @@ result_MAST =
                m = 5)
 ```
 
-We then evaluate the false discovery proportion (FDP) and power of the
+We again evaluate the false discovery proportion (FDP) and power of the
 selected genes.
 
 ``` r
-print("FDP and Power")
-#> [1] "FDP and Power"
-print((length(result_MAST$selected) - sum(result_MAST$selected %in% true_signal))/length(result_MAST$selected)) # FDR
-#> [1] 0
-print(sum(result_MAST$selected %in% true_signal)/length(true_signal)) # Power
-#> [1] 0.86
+results <- data.frame(
+  Method = c("LCD (m = 1)",
+             "MAST (m = 5)"),
+  FDP = c(compute_fdp(result_LCD$selected, true_signal),
+          compute_fdp(result_MAST$selected, true_signal)),
+  Power = c(compute_power(result_LCD$selected, true_signal),
+            compute_power(result_MAST$selected, true_signal))
+)
+
+results
+#>         Method       FDP Power
+#> 1  LCD (m = 1) 0.1403509  0.98
+#> 2 MAST (m = 5) 0.0000000  0.80
 ```
 
 The ground-truth signal genes and the genes selected by LCD and MAST are
@@ -145,19 +174,19 @@ shown below:
 cat("Ground-truth signal genes:\n")
 #> Ground-truth signal genes:
 cat(Seurat_toy@misc$true_signal_genes, sep = ", ")
-#> gene2, gene4, gene5, gene6, gene7, gene8, gene9, gene10, gene11, gene12, gene13, gene16, gene17, gene19, gene21, gene22, gene24, gene29, gene33, gene34, gene39, gene41, gene42, gene43, gene44, gene46, gene57, gene58, gene60, gene65, gene66, gene69, gene70, gene72, gene74, gene75, gene76, gene77, gene79, gene81, gene84, gene86, gene88, gene89, gene90, gene93, gene94, gene95, gene97, gene100
+#> gene3, gene8, gene17, gene18, gene22, gene28, gene29, gene31, gene34, gene39, gene41, gene44, gene46, gene48, gene61, gene67, gene68, gene71, gene78, gene84, gene90, gene91, gene92, gene96, gene98, gene99, gene101, gene104, gene106, gene112, gene117, gene119, gene126, gene128, gene130, gene138, gene143, gene150, gene154, gene159, gene162, gene163, gene164, gene173, gene180, gene183, gene185, gene188, gene191, gene200
 cat("\n\n")
 
-cat("Genes selected by LCD (m=1):\n")
-#> Genes selected by LCD (m=1):
+cat("Genes selected by LCD (m = 1):\n")
+#> Genes selected by LCD (m = 1):
 cat(result_LCD$variables_name, sep = ", ")
-#> gene2, gene4, gene5, gene6, gene8, gene9, gene10, gene11, gene12, gene16, gene17, gene19, gene21, gene22, gene24, gene29, gene33, gene34, gene39, gene42, gene43, gene44, gene46, gene57, gene58, gene60, gene65, gene66, gene69, gene70, gene72, gene76, gene79, gene81, gene84, gene86, gene89, gene93, gene94, gene95, gene97, gene100
+#> gene2, gene3, gene6, gene7, gene8, gene17, gene18, gene22, gene28, gene29, gene31, gene34, gene39, gene41, gene44, gene46, gene48, gene61, gene67, gene68, gene71, gene78, gene84, gene89, gene90, gene91, gene92, gene96, gene98, gene99, gene101, gene104, gene106, gene109, gene111, gene117, gene118, gene119, gene126, gene128, gene130, gene138, gene143, gene150, gene152, gene154, gene159, gene162, gene163, gene164, gene173, gene180, gene183, gene185, gene188, gene191, gene200
 cat("\n\n")
 
-cat("Genes selected by MAST (m=5):\n")
-#> Genes selected by MAST (m=5):
+cat("Genes selected by MAST (m = 5):\n")
+#> Genes selected by MAST (m = 5):
 cat(result_MAST$variables_name, sep = ", ")
-#> gene2, gene4, gene5, gene6, gene8, gene9, gene10, gene11, gene12, gene16, gene17, gene19, gene21, gene22, gene24, gene29, gene33, gene34, gene39, gene41, gene42, gene46, gene57, gene58, gene60, gene65, gene66, gene69, gene70, gene72, gene74, gene75, gene76, gene79, gene81, gene84, gene86, gene90, gene93, gene94, gene95, gene97, gene100
+#> gene8, gene17, gene18, gene28, gene31, gene34, gene39, gene44, gene46, gene61, gene67, gene68, gene78, gene84, gene90, gene91, gene98, gene99, gene101, gene104, gene106, gene117, gene119, gene126, gene128, gene130, gene138, gene143, gene150, gene154, gene159, gene162, gene163, gene164, gene173, gene180, gene183, gene185, gene188, gene200
 cat("\n")
 ```
 

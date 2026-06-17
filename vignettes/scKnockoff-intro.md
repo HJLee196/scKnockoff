@@ -2,6 +2,11 @@ Introduction to scKnockoff
 ================
 Hyunjae Lee
 
+This vignette demonstrates a step-by-step workflow for applying
+`scKnockoff` to a toy single-cell RNA-seq dataset. We illustrate data
+generation, imputation using `sc_softImpute`, knockoff construction,
+feature-importance calculation, and gene selection.
+
 # 1. Load scKnockoff
 
 ``` r
@@ -12,7 +17,7 @@ Hyunjae Lee
 library(scKnockoff)
 ```
 
-# 2. Create dataset
+# 2. Create Dataset
 
 For convenience, the package provides `make_toy_seurat_ad()`, which
 generates a toy Seurat object under a Gaussian latent-factor model. The
@@ -31,38 +36,42 @@ by setting $\mu_{ij} = \exp(G_{ij})$, and observed UMI-like counts are
 generated from a Poisson model.
 
 ``` r
-Seurat_toy = make_toy_seurat_ad(n_genes = 100, 
+Seurat_toy = make_toy_seurat_ad(n_genes = 200, 
                                 donors_per_group = 6,
                                 n_signals = 50,
                                 # fold-change on relative abundance scale
                                 signal_strength = 2,
                                 # latent dimension
                                 r = 5,
-                                seed = 1)
+                                # standard deviation of noise
+                                sigma = 2,
+                                seed = 2)
 ```
 
-# 3. Imputation using sc-softImpute
+# 3. Imputation Using sc-softImpute
 
 In addition to `batch`, `cell_type`, and `age`, we compute and include
-the cellular detection rate (CDR) as a latent variable.
+the cellular detection rate (CDR) as an observed covariate.
 
 ``` r
 feature.names <- rownames(Seurat_toy)
 
 np_data.count <- Seurat::GetAssayData(object = Seurat_toy, layer = "count")
 
-np_data.matrix.exp <- Matrix::t(np_data.count > 0) # indicator matrix for expressed genes,
+# Cell-by-gene indicator matrix: 1 if a gene is expressed in a cell.
+np_data.matrix.exp <- Matrix::t(np_data.count > 0)
+# Number of cells in which each gene is expressed.
 np_data.matrix.exp.count <- Matrix::colSums(np_data.matrix.exp)
 
 # Calculate cellular detection rate (CDR)
-np_data.matrix <- np_data.count # do not transpose here. Keep the genes as rows.
+# Fraction of expressed genes in each cell.
+CDR <- Matrix::rowMeans(np_data.matrix.exp)
 
-CDR <- Matrix::rowMeans(np_data.matrix.exp) # expressed genes in each CELL
 Seurat_toy$CDR <- CDR
 ```
 
-Before applying `sc_softImpute`, we first need to create a matrix of the
-latent variables.
+Before applying `sc_softImpute`, we first construct a covariate matrix
+from the variables used for imputation.
 
 ``` r
 latent.vars_imp = c("batch", "cell_type", "age", "CDR")
@@ -89,8 +98,10 @@ for (imp_vars_temp in latent.vars_imp) {
 }
 ```
 
-We also filter out genes that are expressed in only a few cells to
-satisfy the model assumptions. In this example, we set `PC = 5`.
+We also filter out genes that are expressed in too few cells. This
+ensures that each retained gene has enough observed entries relative to
+the number of covariates and the chosen latent rank. In this example, we
+set `PC = 5`.
 
 ``` r
 PC = 5
@@ -138,10 +149,14 @@ np_data.matrix.imp.list <- sc_softImpute(np_data.matrix = np_data.matrix.center,
                                          max_it = 100)
 ```
 
-# 4. Generating Knockoffs for each method
+# 4. Knockoff Generation Methods
 
-In scKnockoff, we provide four knockoff generation methods: - LR
-knockoff - Multi-LR knockoff - Decomp knockoff - Multi-decomp knockoff
+In scKnockoff, we provide four knockoff generation methods:
+
+- LR knockoff
+- Multi-LR knockoff
+- Decomp knockoff
+- Multi-decomp knockoff
 
 ``` r
 lr_knock <- create_lr_knock(np_data.matrix.imp = np_data.matrix.imp.list$X_imp,
@@ -191,14 +206,18 @@ multi_decomp_knock <- rescale_knockoff(X_knk = multi_decomp_knock,
                                        center = np_data.matrix.fix)
 ```
 
-# 5. Compute the feature importance for each knockoff
+# 5. Compute the Feature Importance for Each Knockoff
 
 We compute feature importance using testing procedures provided by
 `Seurat::FindMarkers`, including the lasso coefficient difference (LCD)
 statistic, which can be specified by setting `test.use = "LCD"` in
-`feature_importance`. In our implementation, we use `test.use = "LCD"`
-for the LR and decomp knockoffs, and `test.use = "LR"` for the multi-LR
-and multi-decomp knockoffs.
+`feature_importance`.
+
+In our implementation, we use `test.use = "LCD"` for the LR and decomp
+knockoffs, and `test.use = "LR"` for the multi-LR and multi-decomp
+knockoffs. When `bonf = TRUE`, the feature-importance statistics are
+computed using the Bonferroni-corrected p-values returned by
+`Seurat::FindMarkers` instead of the raw p-values.
 
 ``` r
 latent.vars_comp = latent.vars_imp
@@ -253,45 +272,42 @@ the selected genes.
 ``` r
 true_signal <- Seurat_toy@misc$true_signal
 
-print("LR knockoff - LCD")
-#> [1] "LR knockoff - LCD"
-print((length(selected_lr) - sum(selected_lr %in% true_signal))/length(selected_lr)) # FDP
-#> [1] 0
-print(sum(selected_lr %in% true_signal)/length(true_signal)) # Power
-#> [1] 0.92
+compute_fdp <- function(selected, true_signal) {
+  if (length(selected) == 0) return(0)
+  (length(selected) - sum(selected %in% true_signal)) / length(selected)
+}
 
-print("Decomp knockoff - LCD")
-#> [1] "Decomp knockoff - LCD"
-print((length(selected_decomp) - sum(selected_decomp %in% true_signal))/length(selected_decomp)) # FDP
-#> [1] 0
-print(sum(selected_decomp %in% true_signal)/length(true_signal)) # Power
-#> [1] 0.84
+compute_power <- function(selected, true_signal) {
+  sum(selected %in% true_signal) / length(true_signal)
+}
 
-print("Multi-LR knockoff - LR")
-#> [1] "Multi-LR knockoff - LR"
-print((length(selected_multi_lr) - sum(selected_multi_lr %in% true_signal))/length(selected_multi_lr)) # FDP
-#> [1] 0
-print(sum(selected_multi_lr %in% true_signal)/length(true_signal)) # Power
-#> [1] 0.96
+results <- data.frame(
+  Method = c("LR knockoff - LCD",
+             "Decomp knockoff - LCD",
+             "Multi-LR knockoff - LR",
+             "Multi-decomp knockoff - LR",
+             "e-LR knockoff - LR",
+             "e-decomp knockoff - LR"),
+  FDP = c(compute_fdp(selected_lr, true_signal),
+          compute_fdp(selected_decomp, true_signal),
+          compute_fdp(selected_multi_lr, true_signal),
+          compute_fdp(selected_multi_decomp, true_signal),
+          compute_fdp(selected_e_lr, true_signal),
+          compute_fdp(selected_e_decomp, true_signal)),
+  Power = c(compute_power(selected_lr, true_signal),
+            compute_power(selected_decomp, true_signal),
+            compute_power(selected_multi_lr, true_signal),
+            compute_power(selected_multi_decomp, true_signal),
+            compute_power(selected_e_lr, true_signal),
+            compute_power(selected_e_decomp, true_signal))
+)
 
-print("Multi-decomp knockoff - LR")
-#> [1] "Multi-decomp knockoff - LR"
-print((length(selected_multi_decomp) - sum(selected_multi_decomp %in% true_signal))/length(selected_multi_decomp)) # FDP
-#> [1] 0
-print(sum(selected_multi_decomp %in% true_signal)/length(true_signal)) # Power
-#> [1] 0.88
-
-print("e-LR knockoff - LR")
-#> [1] "e-LR knockoff - LR"
-print((length(selected_e_lr) - sum(selected_e_lr %in% true_signal))/length(selected_e_lr)) # FDP
-#> [1] 0
-print(sum(selected_e_lr %in% true_signal)/length(true_signal)) # Power
-#> [1] 0.92
-
-print("e-decomp knockoff - LR")
-#> [1] "e-decomp knockoff - LR"
-print((length(selected_e_decomp) - sum(selected_e_decomp %in% true_signal))/length(selected_e_decomp)) # FDP
-#> [1] 0
-print(sum(selected_e_decomp %in% true_signal)/length(true_signal)) # Power
-#> [1] 0.8
+results
+#>                       Method        FDP Power
+#> 1          LR knockoff - LCD 0.07692308  0.96
+#> 2      Decomp knockoff - LCD 0.10909091  0.98
+#> 3     Multi-LR knockoff - LR 0.04255319  0.90
+#> 4 Multi-decomp knockoff - LR 0.02000000  0.98
+#> 5         e-LR knockoff - LR 0.04000000  0.96
+#> 6     e-decomp knockoff - LR 0.00000000  0.90
 ```
