@@ -8,7 +8,7 @@ full_process(
   Seurat_data,
   latent.vars_imp = NULL,
   latent.vars_comp = NULL,
-  PC,
+  PC = NULL,
   ident.1 = NULL,
   ident.2 = NULL,
   slot_name = "data",
@@ -60,8 +60,14 @@ If \code{m >= 2}, multiple knockoffs are constructed using
 default is 100.}
 }
 \value{
-A list containing the indices of selected variables and the corresponding
-variable names.
+A list containing:
+\describe{
+\item{selected_index}{Indices of the selected variables.}
+\item{variables_name}{Names of the selected variables.}
+\item{decomp_knock}{The generated knockoff variables used in the analysis.}
+\item{W_imp}{Feature importance statistics used for variable selection.}
+\item{PC}{Estimated or specified rank used in the matrix decomposition.}
+}
 }
 \description{
 Variable selection using decomp knockoffs with a Seurat dataset
