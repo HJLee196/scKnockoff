@@ -27,6 +27,7 @@ attachment::att_amend_desc(
 
 # 2) docs
 devtools::document()
+devtools::install()
 
 # 3) tests
 # devtools::test()
