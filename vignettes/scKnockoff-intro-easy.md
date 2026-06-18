@@ -6,7 +6,10 @@ This vignette demonstrates a simplified workflow for applying
 `scKnockoff` to a toy single-cell RNA-seq dataset. The main analysis
 steps, including imputation, knockoff generation, feature-importance
 calculation, and gene selection, are combined into a single function
-call using `full_process()`.
+call using `full_process()`. In addition, when `PC = NULL`,
+`full_process()` automatically estimates the number of latent factors
+using the Bulk Eigenvalue Matching Analysis (BEMA) method proposed by
+(Ke et al. 2023).
 
 # 1. Load scKnockoff
 
@@ -81,11 +84,11 @@ We then apply `full_process()` to identify genes associated with disease
 status. In this example, we compare cells from the AD group against
 cells from the Control group by setting `ident.1 = "AD"` and
 `ident.2 = "Control"`. Setting `PC = NULL` allows the number of
-principal components to be estimated automatically using the bulk
-eigenvalue matching analysis (BEMA) method (Ke et al. 2023). The
-covariates `batch`, `cell_type`, `age`, and `CDR` are included in both
-`latent.vars_imp` and `latent.vars_comp` to adjust for potential
-confounding effects during the imputation and comparison steps.
+principal components to be estimated automatically using the BEMA method
+(Ke et al. 2023). The covariates `batch`, `cell_type`, `age`, and `CDR`
+are included in both `latent.vars_imp` and `latent.vars_comp` to adjust
+for potential confounding effects during the imputation and comparison
+steps.
 
 We use `test.use = "LCD"` to construct feature-importance statistics
 based on the lasso coefficient difference statistic, and `m = 1`
@@ -189,6 +192,8 @@ cat(result_MAST$variables_name, sep = ", ")
 #> gene8, gene17, gene18, gene28, gene31, gene34, gene39, gene44, gene46, gene61, gene67, gene68, gene78, gene84, gene90, gene91, gene98, gene99, gene101, gene104, gene106, gene117, gene119, gene126, gene128, gene130, gene138, gene143, gene150, gene154, gene159, gene162, gene163, gene164, gene173, gene180, gene183, gene185, gene188, gene200
 cat("\n")
 ```
+
+# References
 
 <div id="refs" class="references csl-bib-body hanging-indent">
 

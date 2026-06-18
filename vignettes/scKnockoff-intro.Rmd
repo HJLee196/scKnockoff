@@ -206,9 +206,9 @@ multi_decomp_knock <- rescale_knockoff(X_knk = multi_decomp_knock,
 
 # 5. Compute the Feature Importance for Each Knockoff
 
-We compute feature importance using testing procedures provided by `Seurat::FindMarkers`, including the lasso coefficient difference (LCD) statistic, which can be specified by setting `test.use = "LCD"` in `feature_importance`. 
+We compute feature-importance statistics using `feature_importance()`. The function uses `Seurat::FindMarkers` for supported testing procedures and additionally implements the lasso coefficient difference (LCD) statistic, which is not provided by `Seurat::FindMarkers`. The LCD statistic can be selected by setting `test.use = "LCD"`. Here, we set `latent.vars_comp = latent.vars_imp` so that the same covariates used during imputation are also adjusted for when computing the feature-importance statistics.
 
-In our implementation, we use `test.use = "LCD"` for the LR and decomp knockoffs, and `test.use = "LR"` for the multi-LR and multi-decomp knockoffs. When `bonf = TRUE`, the feature-importance statistics are computed using the Bonferroni-corrected p-values returned by `Seurat::FindMarkers` instead of the raw p-values.
+In our implementation, we use `test.use = "LCD"` for the LR and decomp knockoffs, and `test.use = "LR"` for the multi-LR and multi-decomp knockoffs. When `bonf = TRUE`, the feature-importance statistics are computed using the Bonferroni-adjusted p-values returned by `Seurat::FindMarkers`, rather than the unadjusted p-values.
 
 ```{r}
 latent.vars_comp = latent.vars_imp
