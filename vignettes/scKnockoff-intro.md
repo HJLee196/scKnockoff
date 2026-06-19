@@ -1,6 +1,5 @@
-Introduction to scKnockoff
+Introduction to scKnockoff: Step-by-Step Customization
 ================
-Hyunjae Lee
 
 This vignette demonstrates a step-by-step workflow for applying
 `scKnockoff` to a toy single-cell RNA-seq dataset. We illustrate data

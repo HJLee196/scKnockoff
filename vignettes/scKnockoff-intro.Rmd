@@ -1,6 +1,5 @@
 ---
-title: "Introduction to scKnockoff"
-author: "Hyunjae Lee"
+title: "Introduction to scKnockoff: Step-by-Step Customization"
 output: github_document
 vignette: >
   %\VignetteIndexEntry{Introduction to scKnockoff}

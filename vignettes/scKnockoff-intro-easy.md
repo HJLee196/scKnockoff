@@ -1,6 +1,5 @@
-Introduction to scKnockoff - Easy
+Introduction to scKnockoff: Integrated Workflow
 ================
-Hyunjae Lee
 
 This vignette demonstrates a simplified workflow for applying
 `scKnockoff` to a toy single-cell RNA-seq dataset. The main analysis
